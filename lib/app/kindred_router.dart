@@ -14,6 +14,7 @@ import '../features/home/home_screen.dart';
 import '../features/inbox/chat_screen.dart';
 import '../features/inbox/inbox_screen.dart';
 import '../features/post/post_hub_screen.dart';
+import '../features/profile/connections_screen.dart';
 import '../features/profile/profile_screen.dart';
 import 'go_router_refresh.dart';
 import 'shell/app_shell.dart';
@@ -135,6 +136,11 @@ GoRouter createKindredRouter() {
           final uid = state.pathParameters['userId']!;
           return ProfileScreen(userId: uid);
         },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/connections',
+        builder: (context, state) => const ConnectionsScreen(),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

@@ -14,6 +14,7 @@ import 'app/kindred_scaffold_messenger.dart';
 import 'core/config/app_config.dart';
 import 'core/config/kindred_firebase_storage.dart';
 import 'core/kindred_trace.dart';
+import 'core/services/connection_service.dart';
 import 'core/services/event_service.dart';
 import 'core/services/messaging_service.dart';
 import 'core/services/post_service.dart';
@@ -97,6 +98,7 @@ class KindredApp extends StatelessWidget {
     final postService = PostService(firestore, auth, storage);
     final eventService = EventService(firestore, auth, storage);
     final messagingService = MessagingService(firestore, auth);
+    final connectionService = ConnectionService(firestore, auth);
 
     return MultiProvider(
       providers: [
@@ -104,6 +106,7 @@ class KindredApp extends StatelessWidget {
         Provider<PostService>.value(value: postService),
         Provider<EventService>.value(value: eventService),
         Provider<MessagingService>.value(value: messagingService),
+        Provider<ConnectionService>.value(value: connectionService),
       ],
       child: _AuthProfileSync(
         child: MaterialApp.router(

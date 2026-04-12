@@ -13,6 +13,7 @@ import '../../core/models/user_profile.dart';
 import '../../core/services/messaging_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../inbox/chat_screen.dart';
+import 'profile_connection_button.dart';
 import '../../core/utils/blob_from_object_url.dart';
 
 /// Matches the Kindred home cream canvas.
@@ -413,6 +414,26 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   ],
                 ],
               ),
+              const SizedBox(height: 12),
+              if (widget.viewingSelf)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: () => context.push('/connections'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: _headerGreen,
+                      side: const BorderSide(color: _headerGreen, width: 1.5),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    child: const Text('Connections'),
+                  ),
+                )
+              else
+                ProfileConnectionButton(
+                  otherUid: profile.uid,
+                  otherDisplayName: profile.displayName,
+                ),
               const SizedBox(height: 28),
               _StatCard(
                 value: '${profile.eventsAttended}',

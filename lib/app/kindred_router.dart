@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/config/app_config.dart' show isFirebaseConfigured;
 import '../core/models/post_kind.dart';
 import '../features/auth/profile_setup_screen.dart';
+import '../features/auth/session_loading_screen.dart';
 import '../features/auth/setup_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/events/create_event_screen.dart';
@@ -47,12 +48,22 @@ GoRouter createKindredRouter({required KindredProfileGateRefresh profileGateRefr
       }
 
       final complete = profileGateRefresh.setupComplete;
-      if (complete != true) {
-        if (path == '/profile-setup' || path == '/sign-in') return null;
+
+      // First Firestore snapshot not received yet — avoid flashing profile setup.
+      if (complete == null) {
+        if (path == '/session-loading') return null;
+        return '/session-loading';
+      }
+
+      if (complete == false) {
+        if (path == '/profile-setup') return null;
         return '/profile-setup';
       }
 
-      if (path == '/profile-setup' || path == '/sign-in' || path == '/setup') {
+      if (path == '/profile-setup' ||
+          path == '/sign-in' ||
+          path == '/setup' ||
+          path == '/session-loading') {
         return '/home';
       }
 
@@ -70,6 +81,10 @@ GoRouter createKindredRouter({required KindredProfileGateRefresh profileGateRefr
       GoRoute(
         path: '/sign-in',
         builder: (context, state) => const SignInScreen(),
+      ),
+      GoRoute(
+        path: '/session-loading',
+        builder: (context, state) => const SessionLoadingScreen(),
       ),
       GoRoute(
         path: '/profile-setup',

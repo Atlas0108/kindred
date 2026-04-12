@@ -485,6 +485,7 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
   static const double _dividerHeight = 1;
   static const double _tabBarTopGap = 8;
   static const double _tabBarHeight = 48;
+  static const double _tabBarBottomGap = 10;
 
   static const _forest = Color(0xFF4A6354);
 
@@ -492,11 +493,19 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   double get minExtent =>
-      _locationRowHeight + _dividerHeight + _tabBarTopGap + _tabBarHeight;
+      _locationRowHeight +
+      _dividerHeight +
+      _tabBarTopGap +
+      _tabBarHeight +
+      _tabBarBottomGap;
 
   @override
   double get maxExtent =>
-      _locationRowHeight + _dividerHeight + _tabBarTopGap + _tabBarHeight;
+      _locationRowHeight +
+      _dividerHeight +
+      _tabBarTopGap +
+      _tabBarHeight +
+      _tabBarBottomGap;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -550,6 +559,7 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
               ),
             ),
           ),
+          SizedBox(height: _tabBarBottomGap),
         ],
       ),
     );

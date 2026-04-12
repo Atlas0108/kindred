@@ -37,6 +37,18 @@ const _gearIcon = Color(0xFF5C5C5C);
 const _profileGearSize = 38.0;
 const _profileGearIconSize = 16.0;
 
+/// Home-area control in edit profile: show saved city/region label when set.
+String _homeAreaEditButtonLabel(UserProfile p) {
+  final city = p.homeCityLabel?.trim();
+  if (p.homeGeoPoint == null) {
+    return 'Set home for local feed';
+  }
+  if (city != null && city.isNotEmpty) {
+    return city;
+  }
+  return 'Home area — tap to update';
+}
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.userId});
 
@@ -173,19 +185,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
     );
   }
 
-  void _openSetHomeArea(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SetHomeAreaSheet(profile: profile),
-    );
-  }
-
   Future<void> _pickAndUploadProfilePhoto() async {
     if (_uploadingPhoto) return;
     final profileService = context.read<UserProfileService>();
@@ -266,12 +265,9 @@ class _ProfileBodyState extends State<_ProfileBody> {
     final primaryLocation = (city != null && city.isNotEmpty)
         ? city
         : (nb != null && nb.isNotEmpty)
-            ? nb
-            : 'Neighbor';
-    final subtitle = [
-      primaryLocation,
-      if (sinceYear != null) 'Since $sinceYear',
-    ].join(' • ');
+        ? nb
+        : 'Neighbor';
+    final subtitle = [primaryLocation, if (sinceYear != null) 'Since $sinceYear'].join(' • ');
 
     final serif = GoogleFonts.playfairDisplay;
     final tags = profile.profileTags;
@@ -482,21 +478,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   ),
                 ],
               ),
-              if (widget.viewingSelf) ...[
-                const SizedBox(height: 16),
-                OutlinedButton.icon(
-                  onPressed: () => _openSetHomeArea(context),
-                  icon: const Icon(Icons.map_outlined),
-                  label: Text(
-                    profile.homeGeoPoint == null ? 'Set home for local feed' : 'Update home on map',
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _headerGreen,
-                    side: const BorderSide(color: _headerGreen),
-                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                  ),
-                ),
-              ],
               const SizedBox(height: 12),
               if (!widget.viewingSelf)
                 ProfileConnectionButton(
@@ -504,10 +485,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   otherDisplayName: profile.publicDisplayLabel,
                 ),
               const SizedBox(height: 28),
-              _ConnectionsMetricCard(
-                userId: profile.uid,
-                tappable: widget.viewingSelf,
-              ),
+              _ConnectionsMetricCard(userId: profile.uid, tappable: widget.viewingSelf),
               const SizedBox(height: 16),
               _ProfileMetricCard(
                 value: '${profile.eventsAttended}',
@@ -611,11 +589,7 @@ class _Initials extends StatelessWidget {
 }
 
 class _ProfileMetricCard extends StatelessWidget {
-  const _ProfileMetricCard({
-    required this.value,
-    required this.label,
-    required this.valueColor,
-  });
+  const _ProfileMetricCard({required this.value, required this.label, required this.valueColor});
 
   final String value;
   final String label;
@@ -662,10 +636,7 @@ class _ProfileMetricCard extends StatelessWidget {
 }
 
 class _ConnectionsMetricCard extends StatelessWidget {
-  const _ConnectionsMetricCard({
-    required this.userId,
-    required this.tappable,
-  });
+  const _ConnectionsMetricCard({required this.userId, required this.tappable});
 
   final String userId;
   final bool tappable;
@@ -680,11 +651,7 @@ class _ConnectionsMetricCard extends StatelessWidget {
         final card = Stack(
           clipBehavior: Clip.none,
           children: [
-            _ProfileMetricCard(
-              value: '$n',
-              label: 'CONNECTIONS',
-              valueColor: _headerGreen,
-            ),
+            _ProfileMetricCard(value: '$n', label: 'CONNECTIONS', valueColor: _headerGreen),
             if (tappable)
               Positioned(
                 top: 10,
@@ -745,11 +712,25 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
     super.dispose();
   }
 
+  Future<void> _openSetHomeAreaWithProfile(UserProfile p) async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SetHomeAreaSheet(profile: p),
+    );
+  }
+
   Future<void> _save() async {
     if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('First and last name are required.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('First and last name are required.')));
       return;
     }
     final svc = context.read<UserProfileService>();
@@ -760,7 +741,9 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
         lastName: _lastName.text,
         photoUrl: p.photoUrl?.trim().isNotEmpty == true ? p.photoUrl : null,
         bio: _bio.text.trim().isEmpty ? null : _bio.text,
-        neighborhoodLabel: p.neighborhoodLabel?.trim().isNotEmpty == true ? p.neighborhoodLabel : null,
+        neighborhoodLabel: p.neighborhoodLabel?.trim().isNotEmpty == true
+            ? p.neighborhoodLabel
+            : null,
         profileTags: p.profileTags,
         eventsAttended: p.eventsAttended,
         requestsFulfilled: p.requestsFulfilled,
@@ -782,65 +765,89 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
     final theme = Theme.of(context);
+    final profileStream = context.read<UserProfileService>().profileStream(widget.profile.uid);
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(999),
+        child: StreamBuilder<UserProfile?>(
+          stream: profileStream,
+          initialData: widget.profile,
+          builder: (context, snap) {
+            final live = snap.data ?? widget.profile;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Text(
-              'Edit profile',
-              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: _firstName,
-              decoration: const InputDecoration(labelText: 'First name'),
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _lastName,
-              decoration: const InputDecoration(labelText: 'Last name'),
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _bio,
-              decoration: const InputDecoration(
-                labelText: 'Bio',
-                hintText: 'A few words about you…',
-                alignLabelWithHint: true,
-              ),
-              maxLines: 5,
-              minLines: 3,
-              maxLength: UserProfileService.maxBioLength,
-              textCapitalization: TextCapitalization.sentences,
-            ),
-            const SizedBox(height: 24),
-            FilledButton(
-              onPressed: _save,
-              style: FilledButton.styleFrom(
-                backgroundColor: _headerGreen,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text('Save'),
-            ),
-          ],
+                Text(
+                  'Edit profile',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _firstName,
+                  decoration: const InputDecoration(labelText: 'First name'),
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _lastName,
+                  decoration: const InputDecoration(labelText: 'Last name'),
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _bio,
+                  decoration: const InputDecoration(
+                    labelText: 'Bio',
+                    hintText: 'A few words about you…',
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 5,
+                  minLines: 3,
+                  maxLength: UserProfileService.maxBioLength,
+                  textCapitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () => unawaited(_openSetHomeAreaWithProfile(live)),
+                  icon: const Icon(Icons.location_city),
+                  label: Text(
+                    _homeAreaEditButtonLabel(live),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.start,
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _headerGreen,
+                    side: const BorderSide(color: _headerGreen),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: _headerGreen,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

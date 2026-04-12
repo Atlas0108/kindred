@@ -16,7 +16,7 @@ class KindredProfileGateRefresh extends ChangeNotifier {
   StreamSubscription<User?>? _authSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _profileSub;
 
-  /// `null` until the first Firestore snapshot after sign-in (treat as incomplete in redirect).
+  /// `null` until the first Firestore snapshot after sign-in (router uses `/session-loading` until known).
   bool? _setupComplete;
   bool? get setupComplete => _setupComplete;
 

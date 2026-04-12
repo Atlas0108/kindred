@@ -30,8 +30,21 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   bool _uploadingPhoto = false;
   String? _error;
 
+  void _onNameFieldsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _firstName.addListener(_onNameFieldsChanged);
+    _lastName.addListener(_onNameFieldsChanged);
+  }
+
   @override
   void dispose() {
+    _firstName.removeListener(_onNameFieldsChanged);
+    _lastName.removeListener(_onNameFieldsChanged);
     _firstName.dispose();
     _lastName.dispose();
     _bio.dispose();
@@ -159,6 +172,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           builder: (context, snap) {
             final p = snap.data;
             final homeOk = p?.homeGeoPoint != null;
+            final namesOk =
+                _firstName.text.trim().isNotEmpty && _lastName.text.trim().isNotEmpty;
+            final requiredComplete = namesOk && homeOk;
             final theme = Theme.of(context);
 
             return Center(
@@ -250,7 +266,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       FilledButton(
                         onPressed: _saving
                             ? null
-                            : () => _continue(user, p),
+                            : (requiredComplete ? () => _continue(user, p) : null),
                         style: FilledButton.styleFrom(
                           backgroundColor: _headerGreen,
                           foregroundColor: Colors.white,

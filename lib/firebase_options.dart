@@ -45,6 +45,7 @@ class DefaultFirebaseOptions {
     apiKey: "AIzaSyAvretsjS_CnpmRZXyHuS65LyWHgxoGGeU",
     authDomain: "gathr-5b405.firebaseapp.com",
     projectId: "gathr-5b405",
+    // Default Firebase Storage bucket (Firebase Console → Storage).
     storageBucket: "gathr-5b405.firebasestorage.app",
     messagingSenderId: "159475501188",
     appId: "1:159475501188:web:d5df41d3a003acd79b5ad1",

@@ -15,7 +15,7 @@ service cloud.firestore {
       allow create: if request.auth != null
           && request.resource.data.authorId == request.auth.uid
           && request.resource.data.keys().hasAll([
-            'authorId', 'kind', 'tags', 'title', 'geoPoint', 'geohash', 'status', 'createdAt'
+            'authorId', 'authorName', 'kind', 'tags', 'title', 'geoPoint', 'geohash', 'status', 'createdAt'
           ]);
       allow update: if request.auth != null
           && resource.data.authorId == request.auth.uid;

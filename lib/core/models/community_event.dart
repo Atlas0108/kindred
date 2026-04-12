@@ -6,6 +6,7 @@ class CommunityEvent {
     required this.organizerId,
     required this.title,
     required this.description,
+    this.imageUrl,
     required this.startsAt,
     required this.endsAt,
     required this.organizerName,
@@ -20,6 +21,7 @@ class CommunityEvent {
   final String organizerId;
   final String title;
   final String description;
+  final String? imageUrl;
   final DateTime startsAt;
   /// End time; may be absent on legacy documents (treat as unknown).
   final DateTime? endsAt;
@@ -49,6 +51,7 @@ class CommunityEvent {
       organizerId: data['organizerId'] as String? ?? '',
       title: data['title'] as String? ?? '',
       description: data['description'] as String? ?? '',
+      imageUrl: data['imageUrl'] as String?,
       startsAt: (data['startsAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       endsAt: (data['endsAt'] as Timestamp?)?.toDate(),
       organizerName: (data['organizerName'] as String?)?.trim() ?? '',
@@ -69,6 +72,7 @@ class CommunityEvent {
       'organizerId': organizerId,
       'title': title,
       'description': description,
+      if (imageUrl != null && imageUrl!.trim().isNotEmpty) 'imageUrl': imageUrl!.trim(),
       'startsAt': Timestamp.fromDate(startsAt),
       'endsAt': Timestamp.fromDate(end),
       'organizerName': organizerName,

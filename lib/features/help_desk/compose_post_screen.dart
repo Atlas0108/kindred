@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/kindred_scaffold_messenger.dart';
@@ -13,6 +16,7 @@ import '../../core/kindred_trace.dart';
 import '../../core/models/post_kind.dart';
 import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
+import '../../core/utils/blob_from_object_url.dart';
 
 class ComposePostScreen extends StatefulWidget {
   const ComposePostScreen({super.key, this.initialDeskKind});
@@ -31,6 +35,9 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
   final Set<String> _tags = {};
   GeoPoint _postGeo = kDefaultGeoPoint;
   bool _busy = false;
+  XFile? _pickedXFile;
+  Uint8List? _pickedImageBytes;
+  String? _pickedImageMime;
 
   @override
   void initState() {
@@ -70,6 +77,43 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final x = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1280,
+      maxHeight: 1280,
+      imageQuality: 78,
+    );
+    if (x == null) return;
+    if (!mounted) return;
+    if (kIsWeb) {
+      setState(() {
+        _pickedXFile = x;
+        _pickedImageBytes = null;
+        _pickedImageMime = x.mimeType;
+      });
+    } else {
+      final bytes = await x.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _pickedXFile = null;
+        _pickedImageBytes = bytes;
+        _pickedImageMime = x.mimeType;
+      });
+    }
+  }
+
+  void _clearImage() {
+    setState(() {
+      _pickedXFile = null;
+      _pickedImageBytes = null;
+      _pickedImageMime = null;
+    });
+  }
+
+  bool get _hasPickedImage =>
+      _pickedImageBytes != null || (kIsWeb && _pickedXFile != null);
+
   Future<void> _publish() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -83,6 +127,19 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
     setState(() => _busy = true);
     try {
       final kind = _needHelp ? PostKind.helpRequest : PostKind.helpOffer;
+      Object? webBlob;
+      Uint8List? imageBytes = _pickedImageBytes;
+      if (kIsWeb && _pickedXFile != null) {
+        kindredTrace('ComposePostScreen._publish resolving web Blob');
+        webBlob = await blobFromObjectUrl(_pickedXFile!.path);
+        if (webBlob != null) {
+          imageBytes = null;
+        } else {
+          kindredTrace('ComposePostScreen._publish blob URL fetch failed, using bytes');
+          imageBytes = await _pickedXFile!.readAsBytes();
+        }
+      }
+      if (!mounted) return;
       kindredTrace('ComposePostScreen._publish calling PostService.createPost', '$kind');
       final id = await context.read<PostService>().createPost(
             kind: kind,
@@ -90,6 +147,9 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
             body: _body.text.trim().isEmpty ? null : _body.text.trim(),
             tags: _tags.toList(),
             geoPoint: _postGeo,
+            imageBytes: imageBytes,
+            imageContentType: _pickedImageMime,
+            webImageBlob: webBlob,
           );
       kindredTrace('ComposePostScreen._publish createPost returned', id);
       if (!mounted) return;
@@ -154,6 +214,37 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
                     decoration: const InputDecoration(labelText: 'Details (optional)'),
                     maxLines: 4,
                   ),
+                  const SizedBox(height: 20),
+                  Text('Photo (optional)', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  if (_hasPickedImage) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: kIsWeb && _pickedXFile != null
+                            ? Image.network(
+                                _pickedXFile!.path,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.memory(
+                                _pickedImageBytes!,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _clearImage,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Remove photo'),
+                    ),
+                  ] else
+                    OutlinedButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: const Text('Add photo'),
+                    ),
                   const SizedBox(height: 16),
                   Text('Tags', style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 8),

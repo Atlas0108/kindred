@@ -3,6 +3,10 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "storage": {
+    "rules": "storage.rules",
+    "bucket": "gathr-5b405.firebasestorage.app"
+  },
   "flutter": {
     "platforms": {
       "dart": {

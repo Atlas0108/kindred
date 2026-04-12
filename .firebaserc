@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "gathr-5b405"
+    "default": "gathr-5b405",
+    "gathr": "gathr-5b405"
   }
 }

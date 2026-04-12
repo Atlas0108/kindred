@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -13,6 +16,7 @@ import '../../core/constants/event_tag_presets.dart';
 import '../../core/kindred_trace.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/user_profile_service.dart';
+import '../../core/utils/blob_from_object_url.dart';
 
 class CreateEventScreen extends StatefulWidget {
   const CreateEventScreen({super.key});
@@ -32,6 +36,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   /// For discovery radius queries; optional home from profile replaces default.
   GeoPoint _discoveryGeo = kDefaultGeoPoint;
   bool _busy = false;
+  XFile? _pickedXFile;
+  Uint8List? _pickedImageBytes;
+  String? _pickedImageMime;
 
   @override
   void initState() {
@@ -111,6 +118,43 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     });
   }
 
+  Future<void> _pickImage() async {
+    final x = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1280,
+      maxHeight: 1280,
+      imageQuality: 78,
+    );
+    if (x == null) return;
+    if (!mounted) return;
+    if (kIsWeb) {
+      setState(() {
+        _pickedXFile = x;
+        _pickedImageBytes = null;
+        _pickedImageMime = x.mimeType;
+      });
+    } else {
+      final bytes = await x.readAsBytes();
+      if (!mounted) return;
+      setState(() {
+        _pickedXFile = null;
+        _pickedImageBytes = bytes;
+        _pickedImageMime = x.mimeType;
+      });
+    }
+  }
+
+  void _clearImage() {
+    setState(() {
+      _pickedXFile = null;
+      _pickedImageBytes = null;
+      _pickedImageMime = null;
+    });
+  }
+
+  bool get _hasPickedImage =>
+      _pickedImageBytes != null || (kIsWeb && _pickedXFile != null);
+
   Future<void> _pickEndsAt() async {
     final d = await showDatePicker(
       context: context,
@@ -174,6 +218,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     try {
       final tags = _tags.toList()..sort();
       kindredTrace('CreateEventScreen._save calling EventService.createEvent');
+      Object? webBlob;
+      Uint8List? imageBytes = _pickedImageBytes;
+      if (kIsWeb && _pickedXFile != null) {
+        kindredTrace('CreateEventScreen._save resolving web Blob');
+        webBlob = await blobFromObjectUrl(_pickedXFile!.path);
+        if (webBlob != null) {
+          imageBytes = null;
+        } else {
+          kindredTrace('CreateEventScreen._save blob URL fetch failed, using bytes');
+          imageBytes = await _pickedXFile!.readAsBytes();
+        }
+      }
+      if (!mounted) return;
       await context.read<EventService>().createEvent(
             title: title,
             description: description,
@@ -183,6 +240,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             endsAt: _endsAt,
             locationDescription: loc,
             geoPoint: geo,
+            imageBytes: imageBytes,
+            imageContentType: _pickedImageMime,
+            webImageBlob: webBlob,
           );
       kindredTrace('CreateEventScreen._save createEvent returned');
       if (!mounted) {
@@ -266,6 +326,37 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     minLines: 4,
                     maxLines: 8,
                   ),
+                  const SizedBox(height: 20),
+                  Text('Cover photo (optional)', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  if (_hasPickedImage) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: AspectRatio(
+                        aspectRatio: 4 / 3,
+                        child: kIsWeb && _pickedXFile != null
+                            ? Image.network(
+                                _pickedXFile!.path,
+                                fit: BoxFit.cover,
+                              )
+                            : Image.memory(
+                                _pickedImageBytes!,
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _clearImage,
+                      icon: const Icon(Icons.delete_outline),
+                      label: const Text('Remove photo'),
+                    ),
+                  ] else
+                    OutlinedButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: const Text('Add cover photo'),
+                    ),
                   const SizedBox(height: 20),
                   Text('Category / tags', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 4),

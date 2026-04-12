@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -58,12 +59,49 @@ class _EventBody extends StatelessWidget {
     final eventService = context.read<EventService>();
     final userProfileService = context.read<UserProfileService>();
 
+    final hasImage = event.imageUrl != null && event.imageUrl!.trim().isNotEmpty;
+    final imageUrl = hasImage ? event.imageUrl!.trim() : '';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(event.title, style: Theme.of(context).textTheme.headlineSmall),
+          if (hasImage) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return ColoredBox(
+                      color: Colors.grey.shade200,
+                      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => ColoredBox(
+                    color: Colors.grey.shade300,
+                    child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600, size: 48),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+          Text(
+            event.title,
+            style: hasImage
+                ? GoogleFonts.playfairDisplay(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w500,
+                    height: 1.2,
+                    color: const Color(0xFF141414),
+                  )
+                : Theme.of(context).textTheme.headlineSmall,
+          ),
           const SizedBox(height: 8),
           if (event.organizerName.isNotEmpty) ...[
             Row(

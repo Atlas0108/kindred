@@ -8,10 +8,12 @@ class KindredPost {
   const KindredPost({
     required this.id,
     required this.authorId,
+    required this.authorName,
     required this.kind,
     required this.tags,
     required this.title,
     this.body,
+    this.imageUrl,
     required this.geoPoint,
     required this.geohash,
     required this.status,
@@ -22,10 +24,13 @@ class KindredPost {
 
   final String id;
   final String authorId;
+  /// Denormalized for feed cards (no extra profile reads).
+  final String authorName;
   final PostKind kind;
   final List<String> tags;
   final String title;
   final String? body;
+  final String? imageUrl;
   final GeoPoint geoPoint;
   final String geohash;
   final PostStatus status;
@@ -40,13 +45,16 @@ class KindredPost {
     if (kind == null) return null;
     final gp = data['geoPoint'];
     if (gp is! GeoPoint) return null;
+    final rawName = (data['authorName'] as String?)?.trim();
     return KindredPost(
       id: doc.id,
       authorId: data['authorId'] as String? ?? '',
+      authorName: rawName != null && rawName.isNotEmpty ? rawName : 'Neighbor',
       kind: kind,
       tags: List<String>.from(data['tags'] as List<dynamic>? ?? const []),
       title: data['title'] as String? ?? '',
       body: data['body'] as String?,
+      imageUrl: data['imageUrl'] as String?,
       geoPoint: gp,
       geohash: data['geohash'] as String? ?? '',
       status: (data['status'] as String?) == 'fulfilled' ? PostStatus.fulfilled : PostStatus.open,
@@ -59,10 +67,12 @@ class KindredPost {
   Map<String, dynamic> toCreateMap() {
     return {
       'authorId': authorId,
+      'authorName': authorName,
       'kind': postKindToFirestore(kind),
       'tags': tags,
       'title': title,
       if (body != null && body!.isNotEmpty) 'body': body,
+      if (imageUrl != null && imageUrl!.trim().isNotEmpty) 'imageUrl': imageUrl!.trim(),
       'geoPoint': geoPoint,
       'geohash': geohash,
       'status': status == PostStatus.fulfilled ? 'fulfilled' : 'open',

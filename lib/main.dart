@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import 'app/kindred_router.dart';
 import 'app/kindred_scaffold_messenger.dart';
 import 'core/config/app_config.dart';
+import 'core/config/kindred_firebase_storage.dart';
 import 'core/kindred_trace.dart';
 import 'core/services/event_service.dart';
 import 'core/services/post_service.dart';
@@ -60,8 +61,9 @@ class KindredApp extends StatelessWidget {
     final firestore = FirebaseFirestore.instance;
     final auth = FirebaseAuth.instance;
     final userProfileService = UserProfileService(firestore, auth);
-    final postService = PostService(firestore, auth);
-    final eventService = EventService(firestore, auth);
+    final storage = createKindredFirebaseStorage();
+    final postService = PostService(firestore, auth, storage);
+    final eventService = EventService(firestore, auth, storage);
 
     return MultiProvider(
       providers: [

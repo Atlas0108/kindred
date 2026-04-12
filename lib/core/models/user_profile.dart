@@ -16,7 +16,6 @@ class UserProfile {
     this.karma = 0,
     this.createdAt,
     this.neighborhoodLabel,
-    this.profileTags = const [],
     this.eventsAttended = 0,
     this.requestsFulfilled = 0,
     this.eventsProgressNote,
@@ -42,7 +41,6 @@ class UserProfile {
 
   /// Shown as “{label} • Since {year}” on the profile header.
   final String? neighborhoodLabel;
-  final List<String> profileTags;
   final int eventsAttended;
   final int requestsFulfilled;
   final String? eventsProgressNote;
@@ -77,13 +75,6 @@ class UserProfile {
 
   static UserProfile fromDoc(String uid, Map<String, dynamic> data) {
     final home = data['homeGeoPoint'];
-    final rawTags = data['profileTags'];
-    final tags = <String>[];
-    if (rawTags is List) {
-      for (final t in rawTags) {
-        if (t is String && t.trim().isNotEmpty) tags.add(t.trim());
-      }
-    }
     final rawBio = (data['bio'] as String?)?.trim();
     final fn = (data['firstName'] as String?)?.trim();
     final ln = (data['lastName'] as String?)?.trim();
@@ -108,7 +99,6 @@ class UserProfile {
       karma: (data['karma'] as num?)?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
       neighborhoodLabel: (data['neighborhoodLabel'] as String?)?.trim(),
-      profileTags: tags,
       eventsAttended: (data['eventsAttended'] as num?)?.toInt().clamp(0, 9999) ?? 0,
       requestsFulfilled: (data['requestsFulfilled'] as num?)?.toInt().clamp(0, 9999) ?? 0,
       eventsProgressNote: (data['eventsProgressNote'] as String?)?.trim(),
@@ -133,7 +123,6 @@ class UserProfile {
       'karma': karma,
       if (neighborhoodLabel != null && neighborhoodLabel!.trim().isNotEmpty)
         'neighborhoodLabel': neighborhoodLabel!.trim(),
-      'profileTags': profileTags,
       'eventsAttended': eventsAttended.clamp(0, 9999),
       'requestsFulfilled': requestsFulfilled.clamp(0, 9999),
       if (eventsProgressNote != null && eventsProgressNote!.trim().isNotEmpty)

@@ -186,6 +186,8 @@ class _PostBodyState extends State<_PostBody> {
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 14,
                       ),
+                  showVerifiedBadge: true,
+                  verifiedIconSize: 16,
                 ),
               ),
               const SizedBox(width: 10),
@@ -195,13 +197,6 @@ class _PostBodyState extends State<_PostBody> {
           if (post.body != null && post.body!.isNotEmpty) ...[
             const SizedBox(height: 16),
             Text(post.body!, style: Theme.of(context).textTheme.bodyLarge),
-          ],
-          if (post.tags.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              children: post.tags.map((t) => Chip(label: Text(t))).toList(),
-            ),
           ],
           if (isAuthor) ...[
             const SizedBox(height: 32),

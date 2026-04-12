@@ -335,7 +335,6 @@ class UserProfileService {
     required String? photoUrl,
     required String? bio,
     required String? neighborhoodLabel,
-    required List<String> profileTags,
     required int eventsAttended,
     required int requestsFulfilled,
     required String? eventsProgressNote,
@@ -348,21 +347,11 @@ class UserProfileService {
     final l = lastName.trim();
     final combined = '$f $l'.trim();
 
-    final tags = <String>[];
-    final seen = <String>{};
-    for (final t in profileTags) {
-      final s = t.trim();
-      if (s.isEmpty || seen.contains(s)) continue;
-      seen.add(s);
-      tags.add(s);
-      if (tags.length >= 3) break;
-    }
-
     final data = <String, dynamic>{
       'firstName': f,
       'lastName': l,
       'displayName': displayNameForStorage(user, combined.isEmpty ? 'Neighbor' : combined),
-      'profileTags': tags,
+      'profileTags': FieldValue.delete(),
       'eventsAttended': eventsAttended.clamp(0, 9999),
       'requestsFulfilled': requestsFulfilled.clamp(0, 9999),
     };

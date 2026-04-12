@@ -12,7 +12,6 @@ import 'package:provider/provider.dart';
 import '../../app/kindred_scaffold_messenger.dart';
 import '../../core/config/dev_compose_prefills.dart';
 import '../../core/constants/default_geo.dart';
-import '../../core/constants/event_tag_presets.dart';
 import '../../core/kindred_trace.dart';
 import '../../core/models/community_event.dart';
 import '../../core/services/event_service.dart';
@@ -35,7 +34,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   final _title = TextEditingController();
   final _organizer = TextEditingController();
   final _description = TextEditingController();
-  final Set<String> _tags = {};
   late DateTime _startsAt;
   late DateTime _endsAt;
 
@@ -85,7 +83,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       title: _title,
       organizer: _organizer,
       description: _description,
-      tags: _tags,
     );
     if (mounted) setState(() {});
   }
@@ -117,9 +114,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         _description.text = e.description;
         _startsAt = e.startsAt.toLocal();
         _endsAt = end.toLocal();
-        _tags
-          ..clear()
-          ..addAll(e.tags);
         final loc = e.locationDescription.trim();
         _eventMapLocation = GeoSearchResult(
           geoPoint: e.geoPoint,
@@ -310,7 +304,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     kindredTrace('CreateEventScreen._save validation OK, set busy');
     setState(() => _busy = true);
     try {
-      final tags = _tags.toList()..sort();
       kindredTrace('CreateEventScreen._save calling EventService.createEvent');
       Object? webBlob;
       Uint8List? imageBytes = _pickedImageBytes;
@@ -333,7 +326,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           title: title,
           description: description,
           organizerName: organizer,
-          tags: tags,
           startsAt: _startsAt,
           endsAt: _endsAt,
           locationDescription: loc,
@@ -357,7 +349,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           title: title,
           description: description,
           organizerName: organizer,
-          tags: tags,
           startsAt: _startsAt,
           endsAt: _endsAt,
           locationDescription: loc,
@@ -486,34 +477,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                       label: Text(_isEditMode ? 'Change cover photo' : 'Add cover photo'),
                     ),
                   const SizedBox(height: 20),
-                  Text('Category / tags', style: theme.textTheme.titleSmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    'e.g. Social, Educational, Volunteer',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: kEventCategoryTags.map((tag) {
-                      final selected = _tags.contains(tag);
-                      return FilterChip(
-                        label: Text(tag),
-                        selected: selected,
-                        onSelected: (v) => setState(() {
-                          if (v) {
-                            _tags.add(tag);
-                          } else {
-                            _tags.remove(tag);
-                          }
-                        }),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 20),
                   Text('When', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
                   ListTile(
@@ -568,7 +531,7 @@ String _eventSaveErrorMessage(Object e) {
   if (e is FirebaseException) {
     if (e.code == 'permission-denied') {
       return 'Permission denied saving the event. Deploy the latest Firestore rules '
-          '(events need organizerId, title, description, startsAt, endsAt, tags, etc.).';
+          '(events need organizerId, title, description, startsAt, endsAt, etc.).';
     }
     final m = e.message?.trim();
     if (m != null && m.isNotEmpty) return '${e.code}: $m';

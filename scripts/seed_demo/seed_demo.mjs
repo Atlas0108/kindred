@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Seeds Kindred with 3 demo users (Firebase Auth + `users` docs), 3 community-event posts, and 3 help-offer posts.
+ * Seeds Kindred with 3 demo users (Firebase Auth + `users` docs), 3 community-event posts,
+ * 3 help-offer posts, and 3 help-request posts.
  * Events use the same `posts` collection as offers/requests with kind `community_event` (see lib/core/models/post.dart).
  *
  *   If GOOGLE_APPLICATION_CREDENTIALS is unset, the script uses repo secrets/firebase-adminsdk.json
@@ -109,7 +110,6 @@ const demoEvents = [
     title: 'Community garden workday',
     description:
       'Mulch paths, plant winter greens, and share tools. Gloves provided; bring a water bottle.',
-    tags: ['outdoors', 'volunteer', 'garden'],
     locationDescription: 'SE Portland community garden — meet at the tool shed',
     organizerIndex: 0,
     startsInDays: 3,
@@ -119,7 +119,6 @@ const demoEvents = [
     title: 'Neighborhood potluck',
     description:
       'Bring a dish to share (label ingredients). Live music and kids’ craft table in the back.',
-    tags: ['food', 'social', 'family'],
     locationDescription: 'Alberta Arts district — check the map pin for the cross street',
     organizerIndex: 1,
     startsInDays: 10,
@@ -129,7 +128,6 @@ const demoEvents = [
     title: 'Snow shovel brigade signup',
     description:
       'We pair volunteers with neighbors who need walks cleared after storms. Sign up for your block.',
-    tags: ['winter', 'help', 'seniors'],
     locationDescription: 'Virtual kickoff + shared spreadsheet — link in event chat',
     organizerIndex: 2,
     startsInDays: 45,
@@ -142,19 +140,34 @@ const demoOffers = [
     authorIndex: 0,
     title: 'Free compost delivery',
     body: 'I have extra finished compost from my bins — happy to drop off a few buckets within 2 miles.',
-    tags: ['garden', 'sustainability'],
   },
   {
     authorIndex: 1,
     title: 'Loan power tools for weekend projects',
     body: 'Circular saw, drill, and ladder available Fri–Sun if you pick up and return in good shape.',
-    tags: ['tools', 'diy'],
   },
   {
     authorIndex: 2,
     title: 'Dog walking when you travel',
     body: 'I WFH and walk my pup daily — can add yours for short trips (small/medium dogs).',
-    tags: ['pets', 'neighbors'],
+  },
+];
+
+const demoRequests = [
+  {
+    authorIndex: 0,
+    title: 'Need a ride to grocery store',
+    body: 'My car is in the shop for a few days — looking for someone heading near the co-op Saturday morning.',
+  },
+  {
+    authorIndex: 1,
+    title: 'Help setting up a used laptop',
+    body: 'Bought a refurbished Mac for my kid; would love 30 minutes with someone patient to get accounts and parental controls sorted.',
+  },
+  {
+    authorIndex: 2,
+    title: 'Borrow a tall ladder for gutter check',
+    body: 'Two-story house; just need to peek at gutters after the last storm. Will return same day.',
   },
 ];
 
@@ -182,7 +195,6 @@ async function seedUserDoc(uid, u) {
     createdAt: Timestamp.now(),
     homeGeoPoint: gp,
     neighborhoodLabel: u.neighborhood,
-    profileTags: ['COMMUNITY ORGANIZER'],
     eventsAttended: 4,
     requestsFulfilled: 2,
   };
@@ -204,7 +216,6 @@ async function seedCommunityEventPost(template, usersByIndex) {
     authorId: org.uid,
     authorName: org.displayName,
     kind: 'community_event',
-    tags: template.tags,
     title: template.title,
     body: template.description,
     geoPoint: gp,
@@ -219,7 +230,8 @@ async function seedCommunityEventPost(template, usersByIndex) {
   return id;
 }
 
-async function seedOffer(template, usersByIndex) {
+/** @param {'help_offer' | 'help_request'} kind */
+async function seedHelpDeskPost(template, usersByIndex, kind) {
   const author = usersByIndex[template.authorIndex];
   const id = randomUUID();
   if (!execute) return id;
@@ -228,8 +240,7 @@ async function seedOffer(template, usersByIndex) {
   const data = {
     authorId: author.uid,
     authorName: author.displayName,
-    kind: 'help_offer',
-    tags: template.tags,
+    kind,
     title: template.title,
     body: template.body,
     geoPoint: gp,
@@ -287,8 +298,14 @@ async function main() {
 
   console.log('');
   for (const off of demoOffers) {
-    const id = await seedOffer(off, usersByIndex);
+    const id = await seedHelpDeskPost(off, usersByIndex, 'help_offer');
     console.log(`Offer: "${off.title}" → ${execute ? id : '(would create)'}`);
+  }
+
+  console.log('');
+  for (const req of demoRequests) {
+    const id = await seedHelpDeskPost(req, usersByIndex, 'help_request');
+    console.log(`Request: "${req.title}" → ${execute ? id : '(would create)'}`);
   }
 
   if (execute) {

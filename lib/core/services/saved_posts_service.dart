@@ -86,7 +86,6 @@ class SavedPostsService {
       authorId: e.organizerId,
       authorName: e.organizerName.trim().isNotEmpty ? e.organizerName.trim() : 'Neighbor',
       kind: PostKind.communityEvent,
-      tags: e.tags,
       title: e.title,
       body: e.description,
       imageUrl: e.imageUrl,

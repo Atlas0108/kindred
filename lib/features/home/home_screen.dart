@@ -730,6 +730,7 @@ class _EventFeedCard extends StatelessWidget {
                   : 'Organizer',
               prefix: 'Led by ',
               enableProfileTap: false,
+              showVerifiedBadge: true,
             ),
           ],
         ),
@@ -836,6 +837,7 @@ class _EventFeedCard extends StatelessWidget {
               authorName: host,
               prefix: 'Led by ',
               enableProfileTap: false,
+              showVerifiedBadge: true,
             ),
           ],
         ),
@@ -939,9 +941,6 @@ class _PostFeedCard extends StatelessWidget {
     if (b != null && b.isNotEmpty) {
       return b.replaceAll(RegExp(r'\s+'), ' ');
     }
-    if (post.tags.isNotEmpty) {
-      return post.tags.take(4).join(' · ');
-    }
     return 'Tap to read more.';
   }
 
@@ -1025,6 +1024,7 @@ class _PostFeedCard extends StatelessWidget {
               authorId: post.authorId,
               authorName: post.authorName,
               enableProfileTap: false,
+              showVerifiedBadge: true,
             ),
           ],
         ),
@@ -1131,6 +1131,7 @@ class _PostFeedCard extends StatelessWidget {
               authorId: post.authorId,
               authorName: post.authorName,
               enableProfileTap: false,
+              showVerifiedBadge: true,
             ),
           ],
         ),

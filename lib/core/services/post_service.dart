@@ -173,7 +173,6 @@ class PostService {
     required PostKind kind,
     required String title,
     String? body,
-    required List<String> tags,
     required GeoPoint geoPoint,
     Uint8List? imageBytes,
     String? imageContentType,
@@ -208,7 +207,6 @@ class PostService {
       authorId: user.uid,
       authorName: authorName,
       kind: kind,
-      tags: tags,
       title: title,
       body: body,
       imageUrl: imageUrl,
@@ -235,7 +233,6 @@ class PostService {
     required PostKind kind,
     required String title,
     String? body,
-    required List<String> tags,
     required GeoPoint geoPoint,
     bool userRemovedCover = false,
     Uint8List? newCoverBytes,
@@ -254,7 +251,7 @@ class PostService {
     final data = <String, dynamic>{
       'kind': postKindToFirestore(kind),
       'title': title.trim(),
-      'tags': tags,
+      'tags': FieldValue.delete(),
       'geoPoint': geoPoint,
       'geohash': encodeGeohash(geoPoint.latitude, geoPoint.longitude),
     };

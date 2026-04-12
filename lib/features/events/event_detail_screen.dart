@@ -167,6 +167,8 @@ class _EventBodyState extends State<_EventBody> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 14,
                         ),
+                    showVerifiedBadge: true,
+                    verifiedIconSize: 16,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -199,22 +201,6 @@ class _EventBodyState extends State<_EventBody> {
               ),
             ],
           ),
-          if (event.tags.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: event.tags
-                  .map(
-                    (t) => Chip(
-                      label: Text(t),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
           if (event.locationDescription.isNotEmpty) ...[
             const SizedBox(height: 12),
             Row(

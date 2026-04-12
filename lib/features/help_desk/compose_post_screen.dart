@@ -13,7 +13,6 @@ import 'package:provider/provider.dart';
 import '../../app/kindred_scaffold_messenger.dart';
 import '../../core/config/dev_compose_prefills.dart';
 import '../../core/constants/default_geo.dart';
-import '../../core/constants/tag_presets.dart';
 import '../../core/kindred_trace.dart';
 import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
@@ -40,7 +39,6 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
   final _title = TextEditingController();
   final _body = TextEditingController();
   late bool _needHelp;
-  final Set<String> _tags = {};
   GeoSearchResult? _postMapLocation;
   bool _busy = false;
   XFile? _pickedXFile;
@@ -85,9 +83,9 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
   void _applyDevPrefills() {
     if (!dotenv.isInitialized) return;
     if (_needHelp) {
-      DevComposePrefills.applyHelpRequest(title: _title, body: _body, tags: _tags);
+      DevComposePrefills.applyHelpRequest(title: _title, body: _body);
     } else {
-      DevComposePrefills.applyHelpOffer(title: _title, body: _body, tags: _tags);
+      DevComposePrefills.applyHelpOffer(title: _title, body: _body);
     }
     setState(() {});
   }
@@ -117,9 +115,6 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
         _title.text = p.title;
         _body.text = p.body ?? '';
         _needHelp = p.kind == PostKind.helpRequest;
-        _tags
-          ..clear()
-          ..addAll(p.tags);
         final locDesc = p.locationDescription?.trim();
         _postMapLocation = GeoSearchResult(
           geoPoint: p.geoPoint,
@@ -258,7 +253,6 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
               kind: kind,
               title: _title.text.trim(),
               body: _body.text.trim().isEmpty ? null : _body.text.trim(),
-              tags: _tags.toList(),
               geoPoint: place.geoPoint,
               userRemovedCover: _removeExistingCover && !_hasPickedImage,
               newCoverBytes: imageBytes,
@@ -279,7 +273,6 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
               kind: kind,
               title: _title.text.trim(),
               body: _body.text.trim().isEmpty ? null : _body.text.trim(),
-              tags: _tags.toList(),
               geoPoint: place.geoPoint,
               imageBytes: imageBytes,
               imageContentType: _pickedImageMime,
@@ -411,38 +404,6 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
                       icon: const Icon(Icons.add_photo_alternate_outlined),
                       label: Text(_isEditMode ? 'Change photo' : 'Add photo'),
                     ),
-                  const SizedBox(height: 16),
-                  Text('Tags', style: Theme.of(context).textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  ...kTagPresets.entries.map((e) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(e.key, style: Theme.of(context).textTheme.labelLarge),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: e.value.map((tag) {
-                              final selected = _tags.contains(tag);
-                              return FilterChip(
-                                label: Text(tag),
-                                selected: selected,
-                                onSelected: (v) => setState(() {
-                                  if (v) {
-                                    _tags.add(tag);
-                                  } else {
-                                    _tags.remove(tag);
-                                  }
-                                }),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _busy ? null : _publish,

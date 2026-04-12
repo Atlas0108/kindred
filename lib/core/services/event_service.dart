@@ -194,7 +194,6 @@ class EventService {
     required String title,
     required String description,
     required String organizerName,
-    required List<String> tags,
     required DateTime startsAt,
     required DateTime endsAt,
     required String locationDescription,
@@ -234,7 +233,6 @@ class EventService {
       authorId: user.uid,
       authorName: organizerName.trim().isNotEmpty ? organizerName.trim() : 'Neighbor',
       kind: PostKind.communityEvent,
-      tags: tags,
       title: title,
       body: description,
       imageUrl: imageUrl,
@@ -294,7 +292,6 @@ class EventService {
     required String title,
     required String description,
     required String organizerName,
-    required List<String> tags,
     required DateTime startsAt,
     required DateTime endsAt,
     required String locationDescription,
@@ -321,7 +318,7 @@ class EventService {
 
     final data = <String, dynamic>{
       'title': title.trim(),
-      'tags': tags,
+      'tags': FieldValue.delete(),
       'startsAt': Timestamp.fromDate(startsAt),
       'endsAt': Timestamp.fromDate(endsAt),
       'locationDescription': locationDescription.trim(),

@@ -25,11 +25,9 @@ const _pageBackground = Color(0xFFF9F7F2);
 const _headerGreen = Color(0xFF2E7D5A);
 const _editFabGreen = Color(0xFF1F5C40);
 const _slateSubtitle = Color(0xFF5B6B7A);
-const _tagGreenBg = Color(0xFFE8F3EB);
-const _tagGreenFg = Color(0xFF1B4D32);
-const _tagBlueBg = Color(0xFFE8EEF5);
-const _tagBlueFg = Color(0xFF2A4A6A);
 const _statBlue = Color(0xFF3D5A80);
+/// Verified badge on own profile (below location row).
+const _verifiedBlue = Color(0xFF2563EB);
 const _gearBg = Color(0xFFECECEA);
 const _gearIcon = Color(0xFF5C5C5C);
 
@@ -270,7 +268,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
     final subtitle = [primaryLocation, if (sinceYear != null) 'Since $sinceYear'].join(' • ');
 
     final serif = GoogleFonts.playfairDisplay;
-    final tags = profile.profileTags;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
@@ -373,6 +370,23 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.verified_rounded, color: _verifiedBlue, size: 22),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Verified',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ),
               if (profile.bio != null && profile.bio!.trim().isNotEmpty) ...[
                 const SizedBox(height: 24),
                 Align(
@@ -395,29 +409,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
-              ...List.generate(tags.length.clamp(0, 3), (i) {
-                final t = tags[i];
-                final green = i % 2 == 0;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: green ? _tagGreenBg : _tagBlueBg,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      t.toUpperCase(),
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        letterSpacing: 0.6,
-                        fontWeight: FontWeight.w700,
-                        color: green ? _tagGreenFg : _tagBlueFg,
-                      ),
-                    ),
-                  ),
-                );
-              }),
               const SizedBox(height: 20),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -744,7 +735,6 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
         neighborhoodLabel: p.neighborhoodLabel?.trim().isNotEmpty == true
             ? p.neighborhoodLabel
             : null,
-        profileTags: p.profileTags,
         eventsAttended: p.eventsAttended,
         requestsFulfilled: p.requestsFulfilled,
         eventsProgressNote: p.eventsProgressNote,

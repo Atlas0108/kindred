@@ -37,44 +37,28 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final _text = TextEditingController();
   bool _sending = false;
-  Future<void>? _ensureFuture;
+  /// After [ensureDirectConversation] runs for profile/post → chat navigation.
+  bool _conversationEnsured = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.routeExtra != null) {
-      _ensureFuture = _ensureConversation();
-    }
-  }
-
+  /// Creates `conversations/{id}` only when sending the first message (not on open).
   Future<void> _ensureConversation() async {
     final extra = widget.routeExtra;
     if (extra == null) return;
     final me = FirebaseAuth.instance.currentUser;
-    if (me == null || !mounted) return;
+    if (me == null || !mounted) throw StateError('Not signed in');
     final msg = context.read<MessagingService>();
     final profileSvc = context.read<UserProfileService>();
-    try {
-      final myProfile = await profileSvc.fetchProfile(me.uid);
-      if (!mounted) return;
-      final myName = myProfile?.publicDisplayLabel.trim().isNotEmpty == true &&
-              myProfile!.publicDisplayLabel != 'Neighbor'
-          ? myProfile.publicDisplayLabel
-          : (me.displayName?.trim().isNotEmpty == true ? me.displayName!.trim() : 'Neighbor');
-      await msg.ensureDirectConversation(
-        otherUserId: extra.otherUserId,
-        otherDisplayName: extra.otherDisplayName,
-        myDisplayName: myName,
-      );
-    } on Object catch (e) {
-      if (mounted) {
-        final detail = e is FirebaseException ? '${e.code}: ${e.message}' : '$e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not start chat: $detail')),
-        );
-      }
-      rethrow;
-    }
+    final myProfile = await profileSvc.fetchProfile(me.uid);
+    if (!mounted) return;
+    final myName = myProfile?.publicDisplayLabel.trim().isNotEmpty == true &&
+            myProfile!.publicDisplayLabel != 'Neighbor'
+        ? myProfile.publicDisplayLabel
+        : (me.displayName?.trim().isNotEmpty == true ? me.displayName!.trim() : 'Neighbor');
+    await msg.ensureDirectConversation(
+      otherUserId: extra.otherUserId,
+      otherDisplayName: extra.otherDisplayName,
+      myDisplayName: myName,
+    );
   }
 
   @override
@@ -87,29 +71,34 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_sending) return;
     final body = _text.text;
     if (body.trim().isEmpty) return;
-    if (_ensureFuture != null) {
-      try {
-        await _ensureFuture!;
-      } on Object catch (e) {
-        if (mounted) {
-          final detail = e is FirebaseException ? '${e.code}: ${e.message}' : '$e';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not send: $detail')),
-          );
-        }
-        return;
-      }
-    }
-    if (!mounted) return;
-    final msg = context.read<MessagingService>();
+
     setState(() => _sending = true);
-    _text.clear();
     try {
-      await msg.sendMessage(widget.conversationId, body);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not send: $e')));
-        _text.text = body;
+      if (widget.routeExtra != null && !_conversationEnsured) {
+        try {
+          await _ensureConversation();
+        } on Object catch (e) {
+          if (mounted) {
+            final detail = e is FirebaseException ? '${e.code}: ${e.message}' : '$e';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not send: $detail')),
+            );
+          }
+          return;
+        }
+        if (!mounted) return;
+        _conversationEnsured = true;
+      }
+
+      final msg = context.read<MessagingService>();
+      _text.clear();
+      try {
+        await msg.sendMessage(widget.conversationId, body);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not send: $e')));
+          _text.text = body;
+        }
       }
     } finally {
       if (mounted) setState(() => _sending = false);

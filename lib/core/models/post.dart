@@ -10,7 +10,6 @@ class KindredPost {
     required this.authorId,
     required this.authorName,
     required this.kind,
-    required this.tags,
     required this.title,
     this.body,
     this.imageUrl,
@@ -29,7 +28,6 @@ class KindredPost {
   /// Denormalized for feed cards (no extra profile reads).
   final String authorName;
   final PostKind kind;
-  final List<String> tags;
   final String title;
   final String? body;
   final String? imageUrl;
@@ -59,7 +57,6 @@ class KindredPost {
       authorId: data['authorId'] as String? ?? '',
       authorName: rawName != null && rawName.isNotEmpty ? rawName : 'Neighbor',
       kind: kind,
-      tags: List<String>.from(data['tags'] as List<dynamic>? ?? const []),
       title: data['title'] as String? ?? '',
       body: data['body'] as String?,
       imageUrl: data['imageUrl'] as String?,
@@ -79,7 +76,6 @@ class KindredPost {
       'authorId': authorId,
       'authorName': authorName,
       'kind': postKindToFirestore(kind),
-      'tags': tags,
       'title': title,
       if (body != null && body!.isNotEmpty) 'body': body,
       if (imageUrl != null && imageUrl!.trim().isNotEmpty) 'imageUrl': imageUrl!.trim(),

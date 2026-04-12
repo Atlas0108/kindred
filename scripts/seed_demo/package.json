@@ -2,7 +2,7 @@
   "name": "kindred-seed-demo",
   "private": true,
   "type": "module",
-  "description": "Create 3 demo Auth users plus Firestore users, events, and help-offer posts (Firebase Admin).",
+  "description": "Create 3 demo Auth users plus Firestore users, events, help offers, and help requests (Firebase Admin).",
   "dependencies": {
     "firebase-admin": "^13.0.0",
     "ngeohash": "^0.6.3"

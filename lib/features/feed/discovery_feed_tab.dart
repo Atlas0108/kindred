@@ -147,7 +147,7 @@ class _PostTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${DateFormat.yMMMd().add_jm().format(post.createdAt)} · ${post.tags.take(3).join(', ')}',
+                    DateFormat.yMMMd().add_jm().format(post.createdAt),
                   ),
                   PostAuthorTapRow(
                     authorId: post.authorId,
@@ -155,6 +155,8 @@ class _PostTile extends StatelessWidget {
                     avatarRadius: 16,
                     textStyle: Theme.of(context).textTheme.bodySmall,
                     enableProfileTap: false,
+                    showVerifiedBadge: true,
+                    verifiedIconSize: 13,
                   ),
                 ],
               ),
@@ -208,6 +210,8 @@ class _EventTile extends StatelessWidget {
                     avatarRadius: 16,
                     textStyle: Theme.of(context).textTheme.bodySmall,
                     enableProfileTap: false,
+                    showVerifiedBadge: true,
+                    verifiedIconSize: 13,
                   ),
                 ],
               ),

@@ -52,12 +52,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
-    _tabController.addListener(_onTabChanged);
-  }
-
-  void _onTabChanged() {
-    if (_tabController.indexIsChanging) return;
-    setState(() {});
   }
 
   void _openFeedBrowseSheet(BuildContext context, UserProfile profile) {
@@ -75,7 +69,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
   @override
   void dispose() {
-    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
   }
@@ -143,48 +136,43 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         .where((p) => withinRadiusMiles(browseCenter, p.geoPoint, radiusMiles))
                         .toList();
                     final entries = _buildFeedEntries(context, events, posts, postWaiting: postWaiting);
-                    final filtered = _filterEntries(entries, _tabController.index);
-                    final rows = filtered.map((e) => e.card).toList();
 
-                    return CustomScrollView(
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                            child: _KindredEventsHero(onMakePost: () => context.go('/post')),
+                    return NestedScrollView(
+                      headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
+                        return [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                              child: _KindredEventsHero(onMakePost: () => context.go('/post')),
+                            ),
                           ),
-                        ),
-                        const SliverToBoxAdapter(child: SizedBox(height: 20)),
-                        SliverPersistentHeader(
-                          pinned: true,
-                          delegate: _PinnedHomeFeedHeaderDelegate(
-                            scheme: scheme,
-                            backgroundColor: _pageBackground,
-                            tabController: _tabController,
-                            browseLabel: browseLabel,
-                            onBrowseTap: profile == null ? null : () => _openFeedBrowseSheet(context, profile),
-                          ),
-                        ),
-                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                        if (rows.isEmpty)
-                          SliverFillRemaining(
-                            hasScrollBody: false,
-                            child: _EmptyFilterState(tabIndex: _tabController.index, scheme: scheme),
-                          )
-                        else
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                            sliver: SliverList(
-                              delegate: SliverChildBuilderDelegate(
-                                (context, i) => Padding(
-                                  padding: EdgeInsets.only(top: i == 0 ? 0 : 16),
-                                  child: rows[i],
-                                ),
-                                childCount: rows.length,
+                          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                          SliverOverlapAbsorber(
+                            handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+                            sliver: SliverPersistentHeader(
+                              pinned: true,
+                              delegate: _PinnedHomeFeedHeaderDelegate(
+                                scheme: scheme,
+                                backgroundColor: _pageBackground,
+                                tabController: _tabController,
+                                browseLabel: browseLabel,
+                                onBrowseTap: profile == null ? null : () => _openFeedBrowseSheet(context, profile),
                               ),
                             ),
                           ),
-                      ],
+                        ];
+                      },
+                      body: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          for (var t = 0; t < 4; t++)
+                            _HomeFeedTabScrollView(
+                              tabIndex: t,
+                              entries: entries,
+                              scheme: scheme,
+                            ),
+                        ],
+                      ),
                     );
                   },
                 );
@@ -263,6 +251,9 @@ List<_FeedEntry> _buildFeedEntries(
   return entries;
 }
 
+/// Soft peach for event date tiles on the feed (matches [_EventFeedCard]).
+const Color kHomeEventDateBadgeBackground = Color(0xFFFFE8E0);
+
 /// 0 All, 1 Events, 2 Offers, 3 Requests
 List<_FeedEntry> _filterEntries(List<_FeedEntry> entries, int tabIndex) {
   return switch (tabIndex) {
@@ -272,6 +263,61 @@ List<_FeedEntry> _filterEntries(List<_FeedEntry> entries, int tabIndex) {
     3 => entries.where((e) => e.kind == _FeedEntryKind.request).toList(),
     _ => entries,
   };
+}
+
+class _HomeFeedTabScrollView extends StatefulWidget {
+  const _HomeFeedTabScrollView({
+    required this.tabIndex,
+    required this.entries,
+    required this.scheme,
+  });
+
+  final int tabIndex;
+  final List<_FeedEntry> entries;
+  final ColorScheme scheme;
+
+  @override
+  State<_HomeFeedTabScrollView> createState() => _HomeFeedTabScrollViewState();
+}
+
+class _HomeFeedTabScrollViewState extends State<_HomeFeedTabScrollView> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final filtered = _filterEntries(widget.entries, widget.tabIndex);
+    final rows = filtered.map((e) => e.card).toList();
+
+    return CustomScrollView(
+      key: PageStorageKey<String>('home_feed_tab_${widget.tabIndex}'),
+      slivers: [
+        SliverOverlapInjector(
+          handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 8)),
+        if (rows.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _EmptyFilterState(tabIndex: widget.tabIndex, scheme: widget.scheme),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+            sliver: SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => Padding(
+                  padding: EdgeInsets.only(top: i == 0 ? 0 : 16),
+                  child: rows[i],
+                ),
+                childCount: rows.length,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _EmptyFilterState extends StatelessWidget {
@@ -324,6 +370,102 @@ class _EmptyFilterState extends StatelessWidget {
   }
 }
 
+/// Selected pill matches feed card chrome; each tab has a distinct label color.
+class _HomeFeedFilterTabPalette {
+  const _HomeFeedFilterTabPalette({required this.indicator, required this.selectedLabel});
+
+  final Color indicator;
+  final Color selectedLabel;
+}
+
+/// Order: All, Events, Offers, Requests.
+final List<_HomeFeedFilterTabPalette> _homeFeedFilterTabPalettes = [
+  const _HomeFeedFilterTabPalette(
+    indicator: Color(0xFFE5E8EE),
+    selectedLabel: Color(0xFF4A5B6C),
+  ),
+  _HomeFeedFilterTabPalette(
+    indicator: kHomeEventDateBadgeBackground,
+    selectedLabel: kPostKindIconColor,
+  ),
+  _HomeFeedFilterTabPalette(
+    indicator: postKindIconBadgeBackground(PostKind.helpOffer),
+    selectedLabel: const Color(0xFF395648),
+  ),
+  _HomeFeedFilterTabPalette(
+    indicator: postKindIconBadgeBackground(PostKind.helpRequest),
+    selectedLabel: const Color(0xFF6B4A78),
+  ),
+];
+
+class _HomeFeedFilterTabRow extends StatelessWidget {
+  const _HomeFeedFilterTabRow({
+    required this.controller,
+    required this.scheme,
+    required this.palettes,
+    required this.labels,
+  });
+
+  final TabController controller;
+  final ColorScheme scheme;
+  final List<_HomeFeedFilterTabPalette> palettes;
+  final List<String> labels;
+
+  @override
+  Widget build(BuildContext context) {
+    assert(palettes.length == labels.length);
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final idx = controller.index;
+        return Row(
+          children: List.generate(labels.length, (i) {
+            final selected = idx == i;
+            final pal = palettes[i];
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      if (controller.index != i) controller.animateTo(i);
+                    },
+                    borderRadius: BorderRadius.circular(10),
+                    splashColor: pal.indicator.withValues(alpha: 0.35),
+                    highlightColor: pal.indicator.withValues(alpha: 0.2),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        color: selected ? pal.indicator : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Text(
+                            labels[i],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                              fontSize: 14,
+                              color: selected ? pal.selectedLabel : scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+}
+
 class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
   _PinnedHomeFeedHeaderDelegate({
     required this.scheme,
@@ -341,17 +483,20 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
 
   static const double _locationRowHeight = 52;
   static const double _dividerHeight = 1;
+  static const double _tabBarTopGap = 8;
   static const double _tabBarHeight = 48;
 
   static const _forest = Color(0xFF4A6354);
 
+  static const _filterTabLabels = ['All', 'Events', 'Offers', 'Requests'];
+
   @override
   double get minExtent =>
-      _locationRowHeight + _dividerHeight + _tabBarHeight;
+      _locationRowHeight + _dividerHeight + _tabBarTopGap + _tabBarHeight;
 
   @override
   double get maxExtent =>
-      _locationRowHeight + _dividerHeight + _tabBarHeight;
+      _locationRowHeight + _dividerHeight + _tabBarTopGap + _tabBarHeight;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -392,32 +537,16 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
             ),
           ),
           Divider(height: 1, thickness: 1, color: scheme.outlineVariant.withValues(alpha: 0.45)),
+          SizedBox(height: _tabBarTopGap),
           SizedBox(
             height: _tabBarHeight,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: TabBar(
+              child: _HomeFeedFilterTabRow(
                 controller: tabController,
-                isScrollable: false,
-                tabAlignment: TabAlignment.fill,
-                labelColor: _forest,
-                unselectedLabelColor: scheme.onSurfaceVariant,
-                dividerColor: Colors.transparent,
-                indicatorSize: TabBarIndicatorSize.tab,
-                indicatorPadding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-                indicator: BoxDecoration(
-                  color: const Color(0xFFE8F3EB),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                splashBorderRadius: BorderRadius.circular(10),
-                labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-                tabs: const [
-                  Tab(text: 'All'),
-                  Tab(text: 'Events'),
-                  Tab(text: 'Offers'),
-                  Tab(text: 'Requests'),
-                ],
+                scheme: scheme,
+                palettes: _homeFeedFilterTabPalettes,
+                labels: _filterTabLabels,
               ),
             ),
           ),
@@ -512,7 +641,7 @@ class _EventFeedCard extends StatelessWidget {
   static const _metaGrey = Color(0xFF5C6268);
 
   /// Soft peach-cream (former random palette option) for the date tile only.
-  static const _eventDateBadgeBg = Color(0xFFFFE8E0);
+  static const _eventDateBadgeBg = kHomeEventDateBadgeBackground;
 
   /// Same pattern as [_PostFeedCard._kindHeadline]: fixed kind above the title.
   String get _kindHeadline => 'EVENT';

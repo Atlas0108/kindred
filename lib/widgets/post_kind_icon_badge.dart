@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../core/models/post_kind.dart';
 
+/// Forest green used on offer / request / event badge icons (feed + detail).
+const Color kPostKindIconColor = Color(0xFF4A6354);
+
 /// Matches home feed list styling: soft green (offer) / pink–lavender (request).
 Color postKindIconBadgeBackground(PostKind kind) {
   return switch (kind) {
@@ -27,8 +30,6 @@ class PostKindIconBadge extends StatelessWidget {
   final PostKind kind;
   final bool compact;
 
-  static const _iconColor = Color(0xFF4A6354);
-
   IconData get _icon {
     return switch (kind) {
       PostKind.helpOffer => Icons.volunteer_activism_outlined,
@@ -49,7 +50,7 @@ class PostKindIconBadge extends StatelessWidget {
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: padH, vertical: padV),
-        child: Icon(_icon, size: iconSize, color: _iconColor),
+        child: Icon(_icon, size: iconSize, color: kPostKindIconColor),
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -5,12 +6,17 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../core/constants/default_geo.dart';
+import '../../core/geo/geo_utils.dart';
 import '../../core/kindred_trace.dart';
 import '../../core/models/community_event.dart';
 import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
+import '../../core/models/user_profile.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/post_service.dart';
+import '../../core/services/user_profile_service.dart';
+import 'feed_browse_location_sheet.dart';
 import '../../widgets/post_author_row.dart';
 import '../../widgets/post_save_button.dart';
 
@@ -53,6 +59,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     setState(() {});
   }
 
+  void _openFeedBrowseSheet(BuildContext context, UserProfile profile) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => FeedBrowseLocationSheet(profile: profile),
+    );
+  }
+
   @override
   void dispose() {
     _tabController.removeListener(_onTabChanged);
@@ -63,84 +82,110 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const Scaffold(
+        backgroundColor: _pageBackground,
+        body: SafeArea(child: Center(child: Text('Sign in to view the home feed.'))),
+      );
+    }
 
     return Scaffold(
       backgroundColor: _pageBackground,
       body: SafeArea(
-        child: StreamBuilder<List<CommunityEvent>>(
-          stream: context.read<EventService>().homeEventsFeed(),
-          builder: (context, eventSnap) {
-            return StreamBuilder<List<KindredPost>>(
-              stream: context.read<PostService>().homePostsFeed(),
-              builder: (context, postSnap) {
-                final postWaiting =
-                    !postSnap.hasData && postSnap.connectionState == ConnectionState.waiting;
+        child: StreamBuilder<UserProfile?>(
+          stream: context.read<UserProfileService>().profileStream(user.uid),
+          builder: (context, profileSnap) {
+            final profile = profileSnap.data;
+            final browseCenter = profile?.feedBrowseCenter(kDefaultGeoPoint) ?? kDefaultGeoPoint;
+            final radiusMiles = (profile?.discoveryRadiusMiles ?? 25).toDouble();
+            final browseLabel = profile?.feedBrowseLabel(kDefaultGeoPoint) ?? 'San Francisco area';
 
-                if (eventSnap.hasError || postSnap.hasError) {
-                  kindredTrace(
-                    'HomeScreen feed error',
-                    '${eventSnap.error ?? ''} ${postSnap.error ?? ''}'.trim(),
-                  );
-                  return ColoredBox(
-                    color: _pageBackground,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                      children: [
-                        _KindredEventsHero(onMakePost: () => context.go('/post')),
-                        const SizedBox(height: 24),
-                        Text(
-                          'Could not load the feed.\n'
-                          '${eventSnap.error ?? postSnap.error}',
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  );
-                }
+            return StreamBuilder<List<CommunityEvent>>(
+              stream: context.read<EventService>().homeEventsFeed(),
+              builder: (context, eventSnap) {
+                return StreamBuilder<List<KindredPost>>(
+                  stream: context.read<PostService>().homePostsFeed(),
+                  builder: (context, postSnap) {
+                    final postWaiting =
+                        !postSnap.hasData && postSnap.connectionState == ConnectionState.waiting;
 
-                final events = eventSnap.data ?? [];
-                final posts = postSnap.data ?? [];
-                final entries = _buildFeedEntries(context, events, posts, postWaiting: postWaiting);
-                final filtered = _filterEntries(entries, _tabController.index);
-                final rows = filtered.map((e) => e.card).toList();
-
-                return CustomScrollView(
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                        child: _KindredEventsHero(onMakePost: () => context.go('/post')),
-                      ),
-                    ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
-                    SliverPersistentHeader(
-                      pinned: true,
-                      delegate: _PinnedTabBarDelegate(
-                        scheme: scheme,
-                        backgroundColor: _pageBackground,
-                        tabController: _tabController,
-                      ),
-                    ),
-                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                    if (rows.isEmpty)
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _EmptyFilterState(tabIndex: _tabController.index, scheme: scheme),
-                      )
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                        sliver: SliverList(
-                          delegate: SliverChildBuilderDelegate(
-                            (context, i) => Padding(
-                              padding: EdgeInsets.only(top: i == 0 ? 0 : 16),
-                              child: rows[i],
+                    if (eventSnap.hasError || postSnap.hasError) {
+                      kindredTrace(
+                        'HomeScreen feed error',
+                        '${eventSnap.error ?? ''} ${postSnap.error ?? ''}'.trim(),
+                      );
+                      return ColoredBox(
+                        color: _pageBackground,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                          children: [
+                            _KindredEventsHero(onMakePost: () => context.go('/post')),
+                            const SizedBox(height: 24),
+                            Text(
+                              'Could not load the feed.\n'
+                              '${eventSnap.error ?? postSnap.error}',
+                              textAlign: TextAlign.center,
                             ),
-                            childCount: rows.length,
+                          ],
+                        ),
+                      );
+                    }
+
+                    final rawEvents = eventSnap.data ?? [];
+                    final rawPosts = postSnap.data ?? [];
+                    final events = rawEvents
+                        .where((e) => withinRadiusMiles(browseCenter, e.geoPoint, radiusMiles))
+                        .toList();
+                    final posts = rawPosts
+                        .where((p) => withinRadiusMiles(browseCenter, p.geoPoint, radiusMiles))
+                        .toList();
+                    final entries = _buildFeedEntries(context, events, posts, postWaiting: postWaiting);
+                    final filtered = _filterEntries(entries, _tabController.index);
+                    final rows = filtered.map((e) => e.card).toList();
+
+                    return CustomScrollView(
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                            child: _KindredEventsHero(onMakePost: () => context.go('/post')),
                           ),
                         ),
-                      ),
-                  ],
+                        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: _PinnedHomeFeedHeaderDelegate(
+                            scheme: scheme,
+                            backgroundColor: _pageBackground,
+                            tabController: _tabController,
+                            browseLabel: browseLabel,
+                            onBrowseTap: profile == null ? null : () => _openFeedBrowseSheet(context, profile),
+                          ),
+                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                        if (rows.isEmpty)
+                          SliverFillRemaining(
+                            hasScrollBody: false,
+                            child: _EmptyFilterState(tabIndex: _tabController.index, scheme: scheme),
+                          )
+                        else
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                            sliver: SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, i) => Padding(
+                                  padding: EdgeInsets.only(top: i == 0 ? 0 : 16),
+                                  child: rows[i],
+                                ),
+                                childCount: rows.length,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 );
               },
             );
@@ -278,56 +323,115 @@ class _EmptyFilterState extends StatelessWidget {
   }
 }
 
-class _PinnedTabBarDelegate extends SliverPersistentHeaderDelegate {
-  _PinnedTabBarDelegate({
+class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
+  _PinnedHomeFeedHeaderDelegate({
     required this.scheme,
     required this.backgroundColor,
     required this.tabController,
+    required this.browseLabel,
+    required this.onBrowseTap,
   });
 
   final ColorScheme scheme;
   final Color backgroundColor;
   final TabController tabController;
+  final String browseLabel;
+  final VoidCallback? onBrowseTap;
 
+  static const double _locationRowHeight = 52;
+  static const double _dividerHeight = 1;
   static const double _tabBarHeight = 48;
 
-  @override
-  double get minExtent => _tabBarHeight;
+  static const _forest = Color(0xFF4A6354);
 
   @override
-  double get maxExtent => _tabBarHeight;
+  double get minExtent =>
+      _locationRowHeight + _dividerHeight + _tabBarHeight;
+
+  @override
+  double get maxExtent =>
+      _locationRowHeight + _dividerHeight + _tabBarHeight;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final theme = Theme.of(context);
     return Material(
       color: backgroundColor,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: TabBar(
-          controller: tabController,
-          isScrollable: false,
-          tabAlignment: TabAlignment.fill,
-          labelColor: const Color(0xFF4A6354),
-          unselectedLabelColor: scheme.onSurfaceVariant,
-          indicatorColor: const Color(0xFF4A6354),
-          labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
-          tabs: const [
-            Tab(text: 'All'),
-            Tab(text: 'Events'),
-            Tab(text: 'Offers'),
-            Tab(text: 'Requests'),
-          ],
-        ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            height: _locationRowHeight,
+            child: InkWell(
+              onTap: onBrowseTap,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 8, 6),
+                child: Row(
+                  children: [
+                    Icon(Icons.place_outlined, size: 22, color: scheme.onSurface.withValues(alpha: 0.75)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          browseLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: _forest,
+                          ),
+                        ),
+                      ),
+                    ),
+                    Icon(Icons.keyboard_arrow_down_rounded, color: scheme.onSurfaceVariant),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Divider(height: 1, thickness: 1, color: scheme.outlineVariant.withValues(alpha: 0.45)),
+          SizedBox(
+            height: _tabBarHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: TabBar(
+                controller: tabController,
+                isScrollable: false,
+                tabAlignment: TabAlignment.fill,
+                labelColor: _forest,
+                unselectedLabelColor: scheme.onSurfaceVariant,
+                dividerColor: Colors.transparent,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicatorPadding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                indicator: BoxDecoration(
+                  color: const Color(0xFFE8F3EB),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                splashBorderRadius: BorderRadius.circular(10),
+                labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                tabs: const [
+                  Tab(text: 'All'),
+                  Tab(text: 'Events'),
+                  Tab(text: 'Offers'),
+                  Tab(text: 'Requests'),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
   @override
-  bool shouldRebuild(covariant _PinnedTabBarDelegate oldDelegate) {
+  bool shouldRebuild(covariant _PinnedHomeFeedHeaderDelegate oldDelegate) {
     return scheme != oldDelegate.scheme ||
         backgroundColor != oldDelegate.backgroundColor ||
-        tabController != oldDelegate.tabController;
+        tabController != oldDelegate.tabController ||
+        browseLabel != oldDelegate.browseLabel ||
+        onBrowseTap != oldDelegate.onBrowseTap;
   }
 }
 
@@ -406,7 +510,6 @@ class _EventFeedCard extends StatelessWidget {
   static const _arrowColor = Color(0xFF8E9499);
   static const _bodyColor = Color(0xFF5C6268);
   static const _metaGrey = Color(0xFF5C6268);
-  static const _authorGrey = Color(0xFF6B7280);
 
   static const _badgeBackgrounds = [
     Color(0xFFDFF2E8),

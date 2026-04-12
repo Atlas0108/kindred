@@ -245,6 +245,38 @@ class UserProfileService {
     invalidateProfileCache();
   }
 
+  /// Home tab browse center (independent of [updateHomeAndRadius]). Uses [discoveryRadiusMiles] for distance.
+  Future<void> updateFeedBrowseLocation({
+    required GeoPoint feedFilterGeoPoint,
+    required String feedFilterCityLabel,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+    final label = feedFilterCityLabel.trim();
+    await _userRef(user.uid).set(
+      {
+        'feedFilterGeoPoint': feedFilterGeoPoint,
+        if (label.isNotEmpty) 'feedFilterCityLabel': label else 'feedFilterCityLabel': FieldValue.delete(),
+      },
+      SetOptions(merge: true),
+    );
+    invalidateProfileCache();
+  }
+
+  /// Clears feed browse override so Home uses [homeGeoPoint] again.
+  Future<void> clearFeedBrowseLocation() async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+    await _userRef(user.uid).set(
+      {
+        'feedFilterGeoPoint': FieldValue.delete(),
+        'feedFilterCityLabel': FieldValue.delete(),
+      },
+      SetOptions(merge: true),
+    );
+    invalidateProfileCache();
+  }
+
   Future<void> updateDisplayName(String name) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');

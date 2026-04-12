@@ -2,6 +2,17 @@ import { readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/** Default path: repo `secrets/firebase-adminsdk.json` (gitignored). */
+export function applyDefaultGoogleApplicationCredentialsIfUnset(scriptImportMetaUrl) {
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()) return;
+  const scriptDir = dirname(fileURLToPath(scriptImportMetaUrl));
+  const repoRoot = join(scriptDir, '..', '..');
+  const p = join(repoRoot, 'secrets', 'firebase-adminsdk.json');
+  if (existsSync(p)) {
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = p;
+  }
+}
+
 /** Same path FlutterFire writes in this repo (`firebase.json`). */
 function readProjectIdFromRepoFirebaseJson(fromDir) {
   const root = join(fromDir, '..', '..', 'firebase.json');

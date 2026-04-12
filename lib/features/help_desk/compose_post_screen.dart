@@ -17,9 +17,11 @@ import '../../core/constants/tag_presets.dart';
 import '../../core/kindred_trace.dart';
 import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
+import '../../core/services/location_search_service.dart';
 import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/blob_from_object_url.dart';
+import '../../widgets/city_search_field.dart';
 
 class ComposePostScreen extends StatefulWidget {
   const ComposePostScreen({super.key, this.initialDeskKind, this.editingPostId});
@@ -39,7 +41,7 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
   final _body = TextEditingController();
   late bool _needHelp;
   final Set<String> _tags = {};
-  GeoPoint _postGeo = kDefaultGeoPoint;
+  GeoSearchResult? _postMapLocation;
   bool _busy = false;
   XFile? _pickedXFile;
   Uint8List? _pickedImageBytes;
@@ -66,7 +68,10 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
           : k == PostKind.helpRequest
               ? true
               : false;
-      _postGeo = kDefaultGeoPoint;
+      _postMapLocation = GeoSearchResult(
+        label: 'San Francisco area',
+        geoPoint: kDefaultGeoPoint,
+      );
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _applyDevPrefills();
@@ -115,7 +120,13 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
         _tags
           ..clear()
           ..addAll(p.tags);
-        _postGeo = p.geoPoint;
+        final locDesc = p.locationDescription?.trim();
+        _postMapLocation = GeoSearchResult(
+          geoPoint: p.geoPoint,
+          label: locDesc != null && locDesc.isNotEmpty
+              ? locDesc.replaceAll(RegExp(r'\s+'), ' ')
+              : 'Saved post location',
+        );
         _existingCoverUrl = url != null && url.isNotEmpty ? url : null;
         _removeExistingCover = false;
         _loadingEdit = false;
@@ -135,7 +146,13 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
       if (!mounted) return;
       final home = p?.homeGeoPoint;
       if (home != null) {
-        setState(() => _postGeo = home);
+        final label = p?.homeCityLabel?.trim();
+        setState(() {
+          _postMapLocation = GeoSearchResult(
+            geoPoint: home,
+            label: label != null && label.isNotEmpty ? label : 'Home',
+          );
+        });
       }
     } on Exception catch (e) {
       kindredTrace('ComposePostScreen._applyHomeGeo error', e);
@@ -206,6 +223,15 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
       );
       return;
     }
+    final place = _postMapLocation;
+    if (place == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Choose a city or area from the search suggestions.'),
+        ),
+      );
+      return;
+    }
     kindredTrace('ComposePostScreen._publish start');
     setState(() => _busy = true);
     try {
@@ -233,7 +259,7 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
               title: _title.text.trim(),
               body: _body.text.trim().isEmpty ? null : _body.text.trim(),
               tags: _tags.toList(),
-              geoPoint: _postGeo,
+              geoPoint: place.geoPoint,
               userRemovedCover: _removeExistingCover && !_hasPickedImage,
               newCoverBytes: imageBytes,
               newCoverWebBlob: webBlob,
@@ -254,7 +280,7 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
               title: _title.text.trim(),
               body: _body.text.trim().isEmpty ? null : _body.text.trim(),
               tags: _tags.toList(),
-              geoPoint: _postGeo,
+              geoPoint: place.geoPoint,
               imageBytes: imageBytes,
               imageContentType: _pickedImageMime,
               webImageBlob: webBlob,
@@ -325,6 +351,26 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
                     decoration: const InputDecoration(labelText: 'Details (optional)'),
                     maxLines: 4,
                   ),
+                  const SizedBox(height: 20),
+                  Text('City or area', style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Used for nearby feeds and discovery. Pick a suggestion from the list.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 8),
+                  if (!_loadingEdit)
+                    CitySearchField(
+                      value: _postMapLocation,
+                      onChanged: (v) => setState(() => _postMapLocation = v),
+                      decoration: const InputDecoration(
+                        labelText: 'Search city or neighborhood',
+                        hintText: 'Start typing…',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
                   const SizedBox(height: 20),
                   Text('Photo (optional)', style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: 8),
@@ -397,13 +443,6 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
                       ),
                     );
                   }),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Discovery uses your profile home if set; otherwise a default area.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                  ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: _busy ? null : _publish,

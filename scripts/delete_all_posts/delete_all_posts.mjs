@@ -3,7 +3,7 @@
  * Deletes every document in Firestore `posts` and removes Storage files under
  * `post_images/` except filenames starting with `profile_` (avatar uploads).
  *
- *   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/Downloads/your-project-firebase-adminsdk-xxxxx.json"
+ *   Uses secrets/firebase-adminsdk.json when GOOGLE_APPLICATION_CREDENTIALS is unset (same as seed_demo).
  *   cd scripts/delete_all_posts && npm install
  *   node delete_all_posts.mjs              # dry-run: counts only
  *   node delete_all_posts.mjs --execute    # actually delete
@@ -14,6 +14,7 @@
 import admin from 'firebase-admin';
 
 import {
+  applyDefaultGoogleApplicationCredentialsIfUnset,
   assertValidGoogleApplicationCredentialsPath,
   resolveFirebaseProjectId,
 } from '../resolve_firebase_project.mjs';
@@ -34,6 +35,7 @@ for Cloud Datastore (Firestore) and Storage (e.g. Firebase Admin or Editor).
   process.exit(0);
 }
 
+applyDefaultGoogleApplicationCredentialsIfUnset(import.meta.url);
 assertValidGoogleApplicationCredentialsPath();
 
 const resolvedProjectId = resolveFirebaseProjectId(import.meta.url);

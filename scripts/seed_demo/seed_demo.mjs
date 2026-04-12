@@ -3,7 +3,8 @@
  * Seeds Kindred with 3 demo users (Firebase Auth + `users` docs), 3 community-event posts, and 3 help-offer posts.
  * Events use the same `posts` collection as offers/requests with kind `community_event` (see lib/core/models/post.dart).
  *
- *   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/Downloads/your-project-firebase-adminsdk-xxxxx.json"
+ *   If GOOGLE_APPLICATION_CREDENTIALS is unset, the script uses repo secrets/firebase-adminsdk.json
+ *   when that file exists (gitignored). Otherwise set the env var to your service account JSON path.
  *   optional: export DEMO_SEED_PASSWORD="YourSharedPassword123!"
  *   cd scripts/seed_demo && npm install
  *   node seed_demo.mjs              # dry-run
@@ -18,6 +19,7 @@ import ngeohash from 'ngeohash';
 import { randomUUID } from 'node:crypto';
 
 import {
+  applyDefaultGoogleApplicationCredentialsIfUnset,
   assertValidGoogleApplicationCredentialsPath,
   resolveFirebaseProjectId,
 } from '../resolve_firebase_project.mjs';
@@ -33,7 +35,7 @@ Usage: node seed_demo.mjs [--execute]
   --execute  Create Auth users (if missing) and write Firestore documents.
 
 Env:
-  GOOGLE_APPLICATION_CREDENTIALS  (required for --execute) service account JSON path
+  GOOGLE_APPLICATION_CREDENTIALS  (optional if secrets/firebase-adminsdk.json exists) service account JSON path
   GOOGLE_CLOUD_PROJECT / GCLOUD_PROJECT / FIREBASE_PROJECT_ID  (optional; else project_id in key or repo firebase.json)
   DEMO_SEED_PASSWORD                (optional) password for all demo accounts; default built-in demo password
 `);
@@ -42,6 +44,10 @@ Env:
 
 const DEMO_PASSWORD =
   process.env.DEMO_SEED_PASSWORD || 'KindredDemo2026!';
+
+/** All seeded posts use this point (Portland, Oregon) so local feeds map to one metro. */
+const SEED_POST_LAT = 45.5152;
+const SEED_POST_LNG = -122.6784;
 
 /** Match lib/core/geo/geo_utils.dart: precision 5 (~4.9 km cells). JS ngeohash uses lat, lng. */
 function geohash5(lat, lng) {
@@ -55,6 +61,7 @@ let GeoPoint;
 let Timestamp;
 
 if (execute) {
+  applyDefaultGoogleApplicationCredentialsIfUnset(import.meta.url);
   assertValidGoogleApplicationCredentialsPath();
   const resolvedProjectId = resolveFirebaseProjectId(import.meta.url);
   if (!admin.apps.length) {
@@ -103,7 +110,7 @@ const demoEvents = [
     description:
       'Mulch paths, plant winter greens, and share tools. Gloves provided; bring a water bottle.',
     tags: ['outdoors', 'volunteer', 'garden'],
-    locationDescription: 'Sunset Community Garden, 37.776°N — meet at the tool shed',
+    locationDescription: 'SE Portland community garden — meet at the tool shed',
     organizerIndex: 0,
     startsInDays: 3,
     durationHours: 3,
@@ -113,7 +120,7 @@ const demoEvents = [
     description:
       'Bring a dish to share (label ingredients). Live music and kids’ craft table in the back.',
     tags: ['food', 'social', 'family'],
-    locationDescription: 'Jordan’s front yard — check the map pin for the cross street',
+    locationDescription: 'Alberta Arts district — check the map pin for the cross street',
     organizerIndex: 1,
     startsInDays: 10,
     durationHours: 4,
@@ -136,24 +143,18 @@ const demoOffers = [
     title: 'Free compost delivery',
     body: 'I have extra finished compost from my bins — happy to drop off a few buckets within 2 miles.',
     tags: ['garden', 'sustainability'],
-    lat: 37.7765,
-    lng: -122.4172,
   },
   {
     authorIndex: 1,
     title: 'Loan power tools for weekend projects',
     body: 'Circular saw, drill, and ladder available Fri–Sun if you pick up and return in good shape.',
     tags: ['tools', 'diy'],
-    lat: 37.7599,
-    lng: -122.4148,
   },
   {
     authorIndex: 2,
     title: 'Dog walking when you travel',
     body: 'I WFH and walk my pup daily — can add yours for short trips (small/medium dogs).',
     tags: ['pets', 'neighbors'],
-    lat: 37.7308,
-    lng: -122.3834,
   },
 ];
 
@@ -197,7 +198,7 @@ async function seedCommunityEventPost(template, usersByIndex) {
   starts.setDate(starts.getDate() + template.startsInDays);
   starts.setHours(10, 0, 0, 0);
   const ends = new Date(starts.getTime() + template.durationHours * 60 * 60 * 1000);
-  const gp = new GeoPoint(org.lat, org.lng);
+  const gp = new GeoPoint(SEED_POST_LAT, SEED_POST_LNG);
   /** Matches KindredPost.toCreateMap() for PostKind.communityEvent (lib/core/models/post.dart). */
   const data = {
     authorId: org.uid,
@@ -207,7 +208,7 @@ async function seedCommunityEventPost(template, usersByIndex) {
     title: template.title,
     body: template.description,
     geoPoint: gp,
-    geohash: geohash5(org.lat, org.lng),
+    geohash: geohash5(SEED_POST_LAT, SEED_POST_LNG),
     status: 'open',
     createdAt: Timestamp.now(),
     startsAt: Timestamp.fromDate(starts),
@@ -223,7 +224,7 @@ async function seedOffer(template, usersByIndex) {
   const id = randomUUID();
   if (!execute) return id;
 
-  const gp = new GeoPoint(template.lat, template.lng);
+  const gp = new GeoPoint(SEED_POST_LAT, SEED_POST_LNG);
   const data = {
     authorId: author.uid,
     authorName: author.displayName,
@@ -232,7 +233,7 @@ async function seedOffer(template, usersByIndex) {
     title: template.title,
     body: template.body,
     geoPoint: gp,
-    geohash: geohash5(template.lat, template.lng),
+    geohash: geohash5(SEED_POST_LAT, SEED_POST_LNG),
     status: 'open',
     createdAt: Timestamp.now(),
   };

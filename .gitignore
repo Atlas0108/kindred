@@ -1,6 +1,9 @@
 # Local secrets (use `.env.example` as a template)
 .env
 
+# Firebase service account JSON (copy to secrets/firebase-adminsdk.json — never commit)
+/secrets/
+
 # Node (admin scripts)
 **/node_modules/
 

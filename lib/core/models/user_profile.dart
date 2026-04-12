@@ -8,6 +8,8 @@ class UserProfile {
     this.bio,
     this.homeGeoPoint,
     this.homeCityLabel,
+    this.feedFilterGeoPoint,
+    this.feedFilterCityLabel,
     this.discoveryRadiusMiles = 25,
     this.karma = 0,
     this.createdAt,
@@ -27,6 +29,9 @@ class UserProfile {
   final GeoPoint? homeGeoPoint;
   /// From place search / user (e.g. "Oakland, California"); shown with [homeGeoPoint] for local feeds.
   final String? homeCityLabel;
+  /// Optional center for Home tab browse; when null, [homeGeoPoint] is used.
+  final GeoPoint? feedFilterGeoPoint;
+  final String? feedFilterCityLabel;
   final int discoveryRadiusMiles;
   final int karma;
   final DateTime? createdAt;
@@ -60,6 +65,10 @@ class UserProfile {
       homeCityLabel: (data['homeCityLabel'] as String?)?.trim().isNotEmpty == true
           ? (data['homeCityLabel'] as String).trim()
           : null,
+      feedFilterGeoPoint: data['feedFilterGeoPoint'] is GeoPoint ? data['feedFilterGeoPoint'] as GeoPoint : null,
+      feedFilterCityLabel: (data['feedFilterCityLabel'] as String?)?.trim().isNotEmpty == true
+          ? (data['feedFilterCityLabel'] as String).trim()
+          : null,
       discoveryRadiusMiles: (data['discoveryRadiusMiles'] as num?)?.toInt().clamp(10, 100) ?? 25,
       karma: (data['karma'] as num?)?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
@@ -80,6 +89,9 @@ class UserProfile {
       if (homeGeoPoint != null) 'homeGeoPoint': homeGeoPoint,
       if (homeCityLabel != null && homeCityLabel!.trim().isNotEmpty)
         'homeCityLabel': homeCityLabel!.trim(),
+      if (feedFilterGeoPoint != null) 'feedFilterGeoPoint': feedFilterGeoPoint,
+      if (feedFilterCityLabel != null && feedFilterCityLabel!.trim().isNotEmpty)
+        'feedFilterCityLabel': feedFilterCityLabel!.trim(),
       'discoveryRadiusMiles': discoveryRadiusMiles.clamp(10, 100),
       'karma': karma,
       if (neighborhoodLabel != null && neighborhoodLabel!.trim().isNotEmpty)
@@ -92,5 +104,27 @@ class UserProfile {
       if (requestsProgressNote != null && requestsProgressNote!.trim().isNotEmpty)
         'requestsProgressNote': requestsProgressNote!.trim(),
     };
+  }
+
+  /// Center for Home tab geo filter; [fallback] when neither feed override nor home is set.
+  GeoPoint feedBrowseCenter(GeoPoint fallback) =>
+      feedFilterGeoPoint ?? homeGeoPoint ?? fallback;
+
+  /// True when Home uses a browse location different from stored [homeGeoPoint] resolution.
+  bool get feedBrowseUsesCustomFilter => feedFilterGeoPoint != null;
+
+  /// Short label for the Home location chip.
+  String feedBrowseLabel(GeoPoint fallback) {
+    if (feedFilterGeoPoint != null) {
+      final l = feedFilterCityLabel?.trim();
+      if (l != null && l.isNotEmpty) return l;
+      return 'Selected area';
+    }
+    if (homeGeoPoint != null) {
+      final h = homeCityLabel?.trim();
+      if (h != null && h.isNotEmpty) return h;
+      return 'Home';
+    }
+    return 'San Francisco area';
   }
 }

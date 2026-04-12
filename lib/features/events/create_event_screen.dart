@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -17,8 +16,10 @@ import '../../core/constants/event_tag_presets.dart';
 import '../../core/kindred_trace.dart';
 import '../../core/models/community_event.dart';
 import '../../core/services/event_service.dart';
+import '../../core/services/location_search_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/blob_from_object_url.dart';
+import '../../widgets/city_search_field.dart';
 
 class CreateEventScreen extends StatefulWidget {
   const CreateEventScreen({super.key, this.editingEventId});
@@ -34,12 +35,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   final _title = TextEditingController();
   final _organizer = TextEditingController();
   final _description = TextEditingController();
-  final _locationText = TextEditingController();
   final Set<String> _tags = {};
   late DateTime _startsAt;
   late DateTime _endsAt;
-  /// For discovery radius queries; optional home from profile replaces default.
-  GeoPoint _discoveryGeo = kDefaultGeoPoint;
+
+  /// Map pin for discovery; optional profile home replaces default after fetch.
+  GeoSearchResult? _eventMapLocation;
   bool _busy = false;
   XFile? _pickedXFile;
   Uint8List? _pickedImageBytes;
@@ -58,11 +59,12 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     final base = DateTime.now().add(const Duration(days: 1));
     _startsAt = DateTime(base.year, base.month, base.day, base.hour.clamp(0, 23), 0);
     _endsAt = _startsAt.add(const Duration(hours: 1));
-    _discoveryGeo = kDefaultGeoPoint;
     if (_isEditMode) {
+      _eventMapLocation = null;
       _loadingEdit = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadEventForEdit());
     } else {
+      _eventMapLocation = GeoSearchResult(label: 'San Francisco area', geoPoint: kDefaultGeoPoint);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         kindredTrace('CreateEventScreen postFrameCallback');
         if (!mounted) return;
@@ -83,7 +85,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       title: _title,
       organizer: _organizer,
       description: _description,
-      location: _locationText,
       tags: _tags,
     );
     if (mounted) setState(() {});
@@ -101,9 +102,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       final e = await context.read<EventService>().fetchEvent(id);
       if (!mounted) return;
       if (e == null || e.organizerId != user.uid) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You can only edit your own events.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('You can only edit your own events.')));
         context.pop();
         return;
       }
@@ -114,13 +115,16 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         _title.text = e.title;
         _organizer.text = e.organizerName;
         _description.text = e.description;
-        _locationText.text = e.locationDescription;
         _startsAt = e.startsAt.toLocal();
         _endsAt = end.toLocal();
         _tags
           ..clear()
           ..addAll(e.tags);
-        _discoveryGeo = e.geoPoint;
+        final loc = e.locationDescription.trim();
+        _eventMapLocation = GeoSearchResult(
+          geoPoint: e.geoPoint,
+          label: loc.isNotEmpty ? loc.replaceAll(RegExp(r'\s+'), ' ') : 'Event location',
+        );
         _existingCoverUrl = url != null && url.isNotEmpty ? url : null;
         _removeExistingCover = false;
         _loadingEdit = false;
@@ -148,7 +152,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       setState(() {
         final home = p?.homeGeoPoint;
         if (home != null) {
-          _discoveryGeo = home;
+          final label = p?.homeCityLabel?.trim();
+          _eventMapLocation = GeoSearchResult(
+            geoPoint: home,
+            label: label != null && label.isNotEmpty ? label : 'Home',
+          );
         }
         final name = p?.displayName.trim();
         if (name != null &&
@@ -172,7 +180,6 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _title.dispose();
     _organizer.dispose();
     _description.dispose();
-    _locationText.dispose();
     super.dispose();
   }
 
@@ -242,11 +249,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     });
   }
 
-  bool get _hasPickedImage =>
-      _pickedImageBytes != null || (kIsWeb && _pickedXFile != null);
+  bool get _hasPickedImage => _pickedImageBytes != null || (kIsWeb && _pickedXFile != null);
 
-  bool get _showingCover =>
-      _hasPickedImage || (_existingCoverUrl != null && !_removeExistingCover);
+  bool get _showingCover => _hasPickedImage || (_existingCoverUrl != null && !_removeExistingCover);
 
   Future<void> _pickEndsAt() async {
     final d = await showDatePicker(
@@ -256,10 +261,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
     if (d == null || !mounted) return;
-    final t = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_endsAt),
-    );
+    final t = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(_endsAt));
     if (t == null || !mounted) return;
     setState(() {
       _endsAt = DateTime(d.year, d.month, d.day, t.hour, t.minute);
@@ -267,42 +269,41 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   Future<void> _save() async {
-    final geo = _discoveryGeo;
     final title = _title.text.trim();
     final organizer = _organizer.text.trim();
     final description = _description.text.trim();
-    final loc = _locationText.text.trim();
+    final mapPlace = _eventMapLocation;
 
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add an event title.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Add an event title.')));
       return;
     }
     if (organizer.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add an organizer or group name.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Add an organizer or group name.')));
       return;
     }
     if (description.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Add a description and agenda.')));
+      return;
+    }
+    if (mapPlace == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add a description and agenda.')),
+        const SnackBar(content: Text('Choose a city or area from the search suggestions.')),
       );
       return;
     }
-    if (loc.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Add a street address, venue, or virtual meeting link.'),
-        ),
-      );
-      return;
-    }
+    final geo = mapPlace.geoPoint;
+    final loc = mapPlace.label.trim();
     if (!_endsAt.isAfter(_startsAt)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('End time must be after start time.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('End time must be after start time.')));
       return;
     }
 
@@ -328,20 +329,20 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       if (editing != null) {
         kindredTrace('CreateEventScreen._save calling EventService.updateEvent');
         await context.read<EventService>().updateEvent(
-              event: editing,
-              title: title,
-              description: description,
-              organizerName: organizer,
-              tags: tags,
-              startsAt: _startsAt,
-              endsAt: _endsAt,
-              locationDescription: loc,
-              geoPoint: geo,
-              userRemovedCover: _removeExistingCover && !_hasPickedImage,
-              newCoverBytes: imageBytes,
-              newCoverWebBlob: webBlob,
-              newCoverContentType: _pickedImageMime,
-            );
+          event: editing,
+          title: title,
+          description: description,
+          organizerName: organizer,
+          tags: tags,
+          startsAt: _startsAt,
+          endsAt: _endsAt,
+          locationDescription: loc,
+          geoPoint: geo,
+          userRemovedCover: _removeExistingCover && !_hasPickedImage,
+          newCoverBytes: imageBytes,
+          newCoverWebBlob: webBlob,
+          newCoverContentType: _pickedImageMime,
+        );
         kindredTrace('CreateEventScreen._save updateEvent returned');
         if (!mounted) return;
         if (!context.mounted) return;
@@ -353,18 +354,18 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         });
       } else {
         await context.read<EventService>().createEvent(
-              title: title,
-              description: description,
-              organizerName: organizer,
-              tags: tags,
-              startsAt: _startsAt,
-              endsAt: _endsAt,
-              locationDescription: loc,
-              geoPoint: geo,
-              imageBytes: imageBytes,
-              imageContentType: _pickedImageMime,
-              webImageBlob: webBlob,
-            );
+          title: title,
+          description: description,
+          organizerName: organizer,
+          tags: tags,
+          startsAt: _startsAt,
+          endsAt: _endsAt,
+          locationDescription: loc,
+          geoPoint: geo,
+          imageBytes: imageBytes,
+          imageContentType: _pickedImageMime,
+          webImageBlob: webBlob,
+        );
         kindredTrace('CreateEventScreen._save createEvent returned');
         if (!mounted) {
           kindredTrace('CreateEventScreen._save not mounted after create');
@@ -402,10 +403,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit event' : 'New event'),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => context.pop(),
-        ),
+        leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()),
       ),
       body: _loadingEdit
           ? const Center(child: CircularProgressIndicator())
@@ -460,20 +458,17 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                         aspectRatio: 4 / 3,
                         child: _hasPickedImage
                             ? (kIsWeb && _pickedXFile != null
-                                ? Image.network(
-                                    _pickedXFile!.path,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Image.memory(
-                                    _pickedImageBytes!,
-                                    fit: BoxFit.cover,
-                                  ))
+                                  ? Image.network(_pickedXFile!.path, fit: BoxFit.cover)
+                                  : Image.memory(_pickedImageBytes!, fit: BoxFit.cover))
                             : Image.network(
                                 _existingCoverUrl!,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => ColoredBox(
                                   color: Colors.grey.shade300,
-                                  child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600),
+                                  child: Icon(
+                                    Icons.broken_image_outlined,
+                                    color: Colors.grey.shade600,
+                                  ),
                                 ),
                               ),
                       ),
@@ -538,26 +533,19 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     onTap: _pickEndsAt,
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                    controller: _locationText,
-                    decoration: const InputDecoration(
-                      labelText: 'Location',
-                      hintText: 'Street address, venue, or paste a virtual meeting link',
-                      helperText: 'Physical address or virtual meeting link.',
-                      alignLabelWithHint: true,
-                      border: OutlineInputBorder(),
+                  Text('City or area', style: theme.textTheme.titleSmall),
+
+                  const SizedBox(height: 8),
+                  if (!_loadingEdit)
+                    CitySearchField(
+                      value: _eventMapLocation,
+                      onChanged: (v) => setState(() => _eventMapLocation = v),
+                      decoration: const InputDecoration(
+                        labelText: 'Search city or neighborhood',
+                        hintText: 'Start typing…',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
-                    minLines: 2,
-                    maxLines: 4,
-                    textCapitalization: TextCapitalization.sentences,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Discovery uses your profile home location if you have one set; otherwise a default area.',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
                   const SizedBox(height: 28),
                   FilledButton(
                     onPressed: _busy ? null : _save,

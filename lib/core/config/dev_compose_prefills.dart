@@ -49,14 +49,12 @@ class DevComposePrefills {
     required TextEditingController title,
     required TextEditingController organizer,
     required TextEditingController description,
-    required TextEditingController location,
     required Set<String> tags,
   }) {
     if (!dotenv.isInitialized) return;
     _fillController(title, 'KINDRED_DEV_EVENT_TITLE');
     _fillController(organizer, 'KINDRED_DEV_EVENT_ORGANIZER');
     _fillController(description, 'KINDRED_DEV_EVENT_DESCRIPTION');
-    _fillController(location, 'KINDRED_DEV_EVENT_LOCATION');
     _fillTags(tags, 'KINDRED_DEV_EVENT_TAGS');
   }
 }

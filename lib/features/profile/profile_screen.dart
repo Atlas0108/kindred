@@ -15,6 +15,7 @@ import '../../core/services/messaging_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../inbox/chat_screen.dart';
 import 'profile_connection_button.dart';
+import 'set_home_area_sheet.dart';
 import '../../core/utils/blob_from_object_url.dart';
 import '../../widgets/pending_connection_requests_badge.dart';
 
@@ -176,6 +177,19 @@ class _ProfileBodyState extends State<_ProfileBody> {
     );
   }
 
+  void _openSetHomeArea(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SetHomeAreaSheet(profile: profile),
+    );
+  }
+
   Future<void> _pickAndUploadProfilePhoto() async {
     if (_uploadingPhoto) return;
     final profileService = context.read<UserProfileService>();
@@ -242,11 +256,15 @@ class _ProfileBodyState extends State<_ProfileBody> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final sinceYear = profile.createdAt?.year;
+    final city = profile.homeCityLabel?.trim();
+    final nb = profile.neighborhoodLabel?.trim();
+    final primaryLocation = (city != null && city.isNotEmpty)
+        ? city
+        : (nb != null && nb.isNotEmpty)
+            ? nb
+            : 'Neighbor';
     final subtitle = [
-      if (profile.neighborhoodLabel != null && profile.neighborhoodLabel!.isNotEmpty)
-        profile.neighborhoodLabel!
-      else
-        'Neighbor',
+      primaryLocation,
       if (sinceYear != null) 'Since $sinceYear',
     ].join(' • ');
 
@@ -459,6 +477,21 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   ),
                 ],
               ),
+              if (widget.viewingSelf) ...[
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: () => _openSetHomeArea(context),
+                  icon: const Icon(Icons.map_outlined),
+                  label: Text(
+                    profile.homeGeoPoint == null ? 'Set home for local feed' : 'Update home on map',
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: _headerGreen,
+                    side: const BorderSide(color: _headerGreen),
+                    padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               if (!widget.viewingSelf)
                 ProfileConnectionButton(

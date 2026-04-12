@@ -7,6 +7,7 @@ class UserProfile {
     this.photoUrl,
     this.bio,
     this.homeGeoPoint,
+    this.homeCityLabel,
     this.discoveryRadiusMiles = 25,
     this.karma = 0,
     this.createdAt,
@@ -24,6 +25,8 @@ class UserProfile {
   /// Short about text; shown on profile.
   final String? bio;
   final GeoPoint? homeGeoPoint;
+  /// From place search / user (e.g. "Oakland, California"); shown with [homeGeoPoint] for local feeds.
+  final String? homeCityLabel;
   final int discoveryRadiusMiles;
   final int karma;
   final DateTime? createdAt;
@@ -54,6 +57,9 @@ class UserProfile {
       photoUrl: data['photoUrl'] as String?,
       bio: rawBio != null && rawBio.isNotEmpty ? rawBio : null,
       homeGeoPoint: home is GeoPoint ? home : null,
+      homeCityLabel: (data['homeCityLabel'] as String?)?.trim().isNotEmpty == true
+          ? (data['homeCityLabel'] as String).trim()
+          : null,
       discoveryRadiusMiles: (data['discoveryRadiusMiles'] as num?)?.toInt().clamp(10, 100) ?? 25,
       karma: (data['karma'] as num?)?.toInt() ?? 0,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate(),
@@ -72,6 +78,8 @@ class UserProfile {
       if (photoUrl != null && photoUrl!.trim().isNotEmpty) 'photoUrl': photoUrl!.trim(),
       if (bio != null && bio!.trim().isNotEmpty) 'bio': bio!.trim(),
       if (homeGeoPoint != null) 'homeGeoPoint': homeGeoPoint,
+      if (homeCityLabel != null && homeCityLabel!.trim().isNotEmpty)
+        'homeCityLabel': homeCityLabel!.trim(),
       'discoveryRadiusMiles': discoveryRadiusMiles.clamp(10, 100),
       'karma': karma,
       if (neighborhoodLabel != null && neighborhoodLabel!.trim().isNotEmpty)

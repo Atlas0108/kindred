@@ -227,13 +227,21 @@ class UserProfileService {
   Future<void> updateHomeAndRadius({
     required GeoPoint homeGeoPoint,
     required int discoveryRadiusMiles,
+    String? homeCityLabel,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
-    await _userRef(user.uid).set({
+    final data = <String, dynamic>{
       'homeGeoPoint': homeGeoPoint,
       'discoveryRadiusMiles': discoveryRadiusMiles.clamp(10, 100),
-    }, SetOptions(merge: true));
+    };
+    final label = homeCityLabel?.trim();
+    if (label != null && label.isNotEmpty) {
+      data['homeCityLabel'] = label;
+    } else {
+      data['homeCityLabel'] = FieldValue.delete();
+    }
+    await _userRef(user.uid).set(data, SetOptions(merge: true));
     invalidateProfileCache();
   }
 

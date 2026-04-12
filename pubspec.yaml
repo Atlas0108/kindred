@@ -51,6 +51,7 @@ dependencies:
   web: ^1.1.1
   firebase_app_check: ^0.4.2
   shimmer: ^3.0.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

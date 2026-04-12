@@ -11,6 +11,12 @@ import '../../core/services/user_profile_service.dart';
 const _headerGreen = Color(0xFF2E7D5A);
 const _slateSubtitle = Color(0xFF5B6B7A);
 
+/// Matches [ProfileScreen] Message / Inbox primary buttons.
+const _btnPadding = EdgeInsets.symmetric(vertical: 16);
+const _btnShape = RoundedRectangleBorder(
+  borderRadius: BorderRadius.all(Radius.circular(14)),
+);
+
 /// Connection actions when viewing someone else’s profile.
 class ProfileConnectionButton extends StatefulWidget {
   const ProfileConnectionButton({
@@ -179,38 +185,110 @@ class _ProfileConnectionButtonState extends State<ProfileConnectionButton> {
     }
   }
 
+  Future<void> _confirmAndRemoveConnection() async {
+    if (_busy) return;
+    final name = widget.otherDisplayName.trim().isEmpty ? 'this neighbor' : widget.otherDisplayName.trim();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove connection?'),
+        content: Text(
+          'Remove your connection with $name? You can send a new request later if you change your mind.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final connectionSvc = context.read<ConnectionService>();
+    setState(() => _busy = true);
+    try {
+      await connectionSvc.removeConnection(widget.otherUid);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Connection removed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove connection: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_ready) {
-      return const SizedBox(
-        height: 48,
-        child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+      return SizedBox(
+        width: double.infinity,
+        height: 52,
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
       );
     }
 
     final theme = Theme.of(context);
+    final errorColor = theme.colorScheme.error;
 
     if (_connExists) {
-      return OutlinedButton(
-        onPressed: null,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: _slateSubtitle,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: _busy ? null : _confirmAndRemoveConnection,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: errorColor,
+            side: BorderSide(color: errorColor, width: 1.5),
+            padding: _btnPadding,
+            shape: _btnShape,
+          ),
+          child: _busy
+              ? SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: errorColor,
+                  ),
+                )
+              : const Text('Remove Connection'),
         ),
-        child: const Text('Connected'),
       );
     }
 
     if (_outPending) {
-      return OutlinedButton(
-        onPressed: null,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: _slateSubtitle,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      return SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: null,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: _slateSubtitle,
+            padding: _btnPadding,
+            shape: _btnShape,
+          ),
+          child: const Text('Request sent'),
         ),
-        child: const Text('Request sent'),
       );
     }
 
@@ -223,8 +301,8 @@ class _ProfileConnectionButtonState extends State<ProfileConnectionButton> {
               style: FilledButton.styleFrom(
                 backgroundColor: _headerGreen,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: _btnPadding,
+                shape: _btnShape,
               ),
               child: const Text('Accept'),
             ),
@@ -234,8 +312,8 @@ class _ProfileConnectionButtonState extends State<ProfileConnectionButton> {
             child: OutlinedButton(
               onPressed: _busy ? null : _decline,
               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: _btnPadding,
+                shape: _btnShape,
               ),
               child: const Text('Decline'),
             ),
@@ -244,24 +322,27 @@ class _ProfileConnectionButtonState extends State<ProfileConnectionButton> {
       );
     }
 
-    return OutlinedButton(
-      onPressed: _busy ? null : _sendRequest,
-      style: OutlinedButton.styleFrom(
-        foregroundColor: _headerGreen,
-        side: const BorderSide(color: _headerGreen, width: 1.5),
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: _busy ? null : _sendRequest,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: _headerGreen,
+          side: const BorderSide(color: _headerGreen, width: 1.5),
+          padding: _btnPadding,
+          shape: _btnShape,
+        ),
+        child: _busy
+            ? SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.primary,
+                ),
+              )
+            : const Text('Request Connection'),
       ),
-      child: _busy
-          ? SizedBox(
-              width: 22,
-              height: 22,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: theme.colorScheme.primary,
-              ),
-            )
-          : const Text('Request Connection'),
     );
   }
 }

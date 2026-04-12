@@ -94,4 +94,15 @@ class ConnectionService {
     if (me == null) throw StateError('Not signed in');
     await _connectionRequests(me.uid).doc(fromUserId).delete();
   }
+
+  /// Removes the mutual connection documents for [peerUid] and the current user.
+  Future<void> removeConnection(String peerUid) async {
+    final me = _auth.currentUser;
+    if (me == null) throw StateError('Not signed in');
+    if (peerUid == me.uid) return;
+    final batch = _firestore.batch();
+    batch.delete(_connections(me.uid).doc(peerUid));
+    batch.delete(_connections(peerUid).doc(me.uid));
+    await batch.commit();
+  }
 }

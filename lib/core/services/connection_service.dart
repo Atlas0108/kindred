@@ -62,6 +62,19 @@ class ConnectionService {
     });
   }
 
+  /// Number of accepted connections in `users/{uid}/connections`.
+  Stream<int> connectionCountStream(String uid) {
+    if (uid.isEmpty) return const Stream.empty();
+    return _connections(uid).snapshots().map((snap) => snap.docs.length);
+  }
+
+  /// Pending incoming requests for the signed-in user (`users/{me}/connectionRequests`).
+  Stream<int> incomingRequestCountStream() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return const Stream.empty();
+    return _connectionRequests(uid).snapshots().map((snap) => snap.docs.length);
+  }
+
   Future<void> approveConnectionRequest({
     required String fromUserId,
     required String fromDisplayName,

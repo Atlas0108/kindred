@@ -8,6 +8,10 @@ import '../../core/models/connection_request.dart';
 import '../../core/models/user_connection.dart';
 import '../../core/services/connection_service.dart';
 import '../../core/services/user_profile_service.dart';
+import '../../widgets/connection_approve_decline_row.dart';
+import '../../widgets/pending_connection_requests_badge.dart';
+
+const _requestsTabIndex = 1;
 
 /// Tabbed view of accepted connections and incoming requests.
 class ConnectionsScreen extends StatefulWidget {
@@ -44,9 +48,36 @@ class _ConnectionsScreenState extends State<ConnectionsScreen> with SingleTicker
         title: const Text('Connections'),
         bottom: TabBar(
           controller: _tabs,
-          tabs: const [
-            Tab(text: 'My connections'),
-            Tab(text: 'Requests'),
+          tabs: [
+            const Tab(text: 'My connections'),
+            Tab(
+              child: AnimatedBuilder(
+                animation: _tabs,
+                builder: (context, _) {
+                  final svc = context.read<ConnectionService>();
+                  return StreamBuilder<int>(
+                    stream: svc.incomingRequestCountStream(),
+                    builder: (context, snap) {
+                      final pending = snap.data ?? 0;
+                      final showBadge =
+                          pending > 0 && _tabs.index != _requestsTabIndex;
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text('Requests'),
+                          if (showBadge) ...[
+                            const SizedBox(width: 6),
+                            PendingConnectionRequestsBadge(count: pending),
+                          ],
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
           ],
         ),
       ),
@@ -174,54 +205,54 @@ class _RequestsList extends StatelessWidget {
               child: Card(
                 elevation: 0,
                 color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(child: Text(initial)),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  r.fromDisplayName,
-                                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => context.push('/u/${r.fromUserId}'),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 8, 12),
+                          child: Row(
+                            children: [
+                              CircleAvatar(child: Text(initial)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      r.fromDisplayName,
+                                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                                    ),
+                                    Text(
+                                      sub,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        color: theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                Text(
-                                  sub,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => _decline(context, svc, r.fromUserId),
-                              child: const Text('Decline'),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: () => _approve(context, svc, r, onApproved),
-                              child: const Text('Approve'),
-                            ),
-                          ),
-                        ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: ConnectionApproveDeclineRow(
+                        onDecline: () => _decline(context, svc, r.fromUserId),
+                        onApprove: () => _approve(context, svc, r, onApproved),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             );

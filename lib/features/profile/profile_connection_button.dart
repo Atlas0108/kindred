@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/services/connection_service.dart';
 import '../../core/services/user_profile_service.dart';
+import '../../widgets/connection_approve_decline_row.dart';
 
 const _headerGreen = Color(0xFF2E7D5A);
 const _slateSubtitle = Color(0xFF5B6B7A);
@@ -293,32 +294,10 @@ class _ProfileConnectionButtonState extends State<ProfileConnectionButton> {
     }
 
     if (_inPending) {
-      return Row(
-        children: [
-          Expanded(
-            child: FilledButton(
-              onPressed: _busy ? null : _approve,
-              style: FilledButton.styleFrom(
-                backgroundColor: _headerGreen,
-                foregroundColor: Colors.white,
-                padding: _btnPadding,
-                shape: _btnShape,
-              ),
-              child: const Text('Accept'),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _busy ? null : _decline,
-              style: OutlinedButton.styleFrom(
-                padding: _btnPadding,
-                shape: _btnShape,
-              ),
-              child: const Text('Decline'),
-            ),
-          ),
-        ],
+      return ConnectionApproveDeclineRow(
+        busy: _busy,
+        onDecline: _decline,
+        onApprove: _approve,
       );
     }
 

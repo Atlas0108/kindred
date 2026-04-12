@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -5,7 +6,8 @@ import 'package:provider/provider.dart';
 import '../core/models/user_profile.dart';
 import '../core/services/user_profile_service.dart';
 
-/// Avatar + author name; tap opens [`/u/{authorId}`] public profile.
+/// Avatar + author line; label uses live `users/{authorId}` display name when available
+/// ([authorName] is only a fallback). Tap opens [`/u/{authorId}`] except for the signed-in user.
 class PostAuthorTapRow extends StatelessWidget {
   const PostAuthorTapRow({
     super.key,
@@ -103,6 +105,10 @@ class PostAuthorTapRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final svc = context.read<UserProfileService>();
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final isSelf = myUid != null && authorId == myUid;
+    final tappable = authorId.isNotEmpty && !isSelf;
+
     final defaultStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: const Color(0xFF6B7280),
           fontWeight: FontWeight.w500,
@@ -113,53 +119,57 @@ class PostAuthorTapRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: authorId.isEmpty ? null : () => _openProfile(context),
+        onTap: tappable ? () => _openProfile(context) : null,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-          child: Row(
-            children: [
-              StreamBuilder<UserProfile?>(
-                stream: authorId.isEmpty
-                    ? Stream<UserProfile?>.value(null)
-                    : svc.profileStream(authorId),
-                builder: (context, snap) {
-                  final url = snap.data?.photoUrl?.trim();
-                  final name = (snap.data?.displayName.trim().isNotEmpty ?? false)
-                      ? snap.data!.displayName
-                      : authorName;
-                  final bg = placeholderBackgroundColor ?? Colors.grey.shade300;
-                  final ic = iconColor ?? Colors.grey.shade600;
-                  final d = avatarRadius * 2;
-                  return _clippedAvatar(
+          child: StreamBuilder<UserProfile?>(
+            stream: authorId.isEmpty
+                ? Stream<UserProfile?>.value(null)
+                : svc.profileStream(authorId),
+            builder: (context, snap) {
+              final profile = snap.data;
+              final displayName = (profile?.displayName.trim().isNotEmpty ?? false)
+                  ? profile!.displayName
+                  : authorName;
+              final url = profile?.photoUrl?.trim();
+              final bg = placeholderBackgroundColor ?? Colors.grey.shade300;
+              final ic = iconColor ?? Colors.grey.shade600;
+              final d = avatarRadius * 2;
+              return Row(
+                children: [
+                  _clippedAvatar(
                     d: d,
                     bg: bg,
                     ic: ic,
-                    name: name,
+                    name: displayName,
                     imageUrl: url,
-                  );
-                },
-              ),
-              SizedBox(width: avatarRadius > 16 ? 12 : 8),
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
-                    style: mergedStyle,
-                    children: [
-                      TextSpan(text: prefix),
-                      TextSpan(
-                        text: authorName,
-                        style: mergedStyle?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
-                          decorationColor: mergedStyle.color?.withValues(alpha: 0.4),
-                        ),
-                      ),
-                    ],
                   ),
-                ),
-              ),
-            ],
+                  SizedBox(width: avatarRadius > 16 ? 12 : 8),
+                  Expanded(
+                    child: Text.rich(
+                      TextSpan(
+                        style: mergedStyle,
+                        children: [
+                          TextSpan(text: prefix),
+                          TextSpan(
+                            text: displayName,
+                            style: mergedStyle?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              decoration:
+                                  tappable ? TextDecoration.underline : TextDecoration.none,
+                              decorationColor: tappable
+                                  ? mergedStyle.color?.withValues(alpha: 0.4)
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

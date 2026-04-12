@@ -10,11 +10,13 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/user_profile.dart';
+import '../../core/services/connection_service.dart';
 import '../../core/services/messaging_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../inbox/chat_screen.dart';
 import 'profile_connection_button.dart';
 import '../../core/utils/blob_from_object_url.dart';
+import '../../widgets/pending_connection_requests_badge.dart';
 
 /// Matches the Kindred home cream canvas.
 const _pageBackground = Color(0xFFF9F7F2);
@@ -29,6 +31,10 @@ const _tagBlueFg = Color(0xFF2A4A6A);
 const _statBlue = Color(0xFF3D5A80);
 const _gearBg = Color(0xFFECECEA);
 const _gearIcon = Color(0xFF5C5C5C);
+
+/// Square settings control; smaller than the Inbox [FilledButton] (natural height from padding).
+const _profileGearSize = 38.0;
+const _profileGearIconSize = 16.0;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.userId});
@@ -55,9 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Sign in to view your profile.')),
-      );
+      return const Scaffold(body: Center(child: Text('Sign in to view your profile.')));
     }
 
     final targetUid = widget.userId ?? user.uid;
@@ -85,7 +89,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Text(
                         'Add an email address to your account to show your profile.',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: _slateSubtitle),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.copyWith(color: _slateSubtitle),
                       ),
                     ),
                   );
@@ -136,9 +142,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-      ),
+      appBar: AppBar(title: const Text('Profile')),
       body: body,
     );
   }
@@ -158,9 +162,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
   bool _uploadingPhoto = false;
 
   UserProfile get profile => widget.profile;
-
-  static double _eventsProgress(int n) => (n / 16).clamp(0.0, 1.0);
-  static double _requestsProgress(int n) => (n / 12).clamp(0.0, 1.0);
 
   void _openEdit(BuildContext context) {
     showModalBottomSheet<void>(
@@ -203,19 +204,19 @@ class _ProfileBodyState extends State<_ProfileBody> {
     setState(() => _uploadingPhoto = true);
     try {
       await profileService.uploadAndSetProfilePhoto(
-            imageBytes: bytes,
-            webImageBlob: webBlob,
-            imageContentType: mime,
-          );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile photo updated')),
+        imageBytes: bytes,
+        webImageBlob: webBlob,
+        imageContentType: mime,
       );
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile photo updated')));
     } on Object catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update photo: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update photo: $e')));
     } finally {
       if (mounted) setState(() => _uploadingPhoto = false);
     }
@@ -227,10 +228,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
     final id = MessagingService.conversationIdForPair(me.uid, profile.uid);
     context.push(
       '/chat/$id',
-      extra: ChatScreenRouteExtra(
-        otherUserId: profile.uid,
-        otherDisplayName: profile.displayName,
-      ),
+      extra: ChatScreenRouteExtra(otherUserId: profile.uid, otherDisplayName: profile.displayName),
     );
   }
 
@@ -381,80 +379,86 @@ class _ProfileBodyState extends State<_ProfileBody> {
               }),
               const SizedBox(height: 20),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    child: FilledButton(
-                      onPressed: widget.viewingSelf
-                          ? () => context.go('/inbox')
-                          : () => _openChat(context),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _headerGreen,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      ),
-                      child: widget.viewingSelf ? const Text('Inbox') : const Text('Message'),
-                    ),
+                    child: widget.viewingSelf
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: FilledButton(
+                                  onPressed: () => context.go('/inbox'),
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: _headerGreen,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  child: const Text('Inbox'),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: _profileGearSize,
+                                height: _profileGearSize,
+                                child: Material(
+                                  color: _gearBg,
+                                  borderRadius: BorderRadius.circular(14),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: () => _openEdit(context),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.settings,
+                                        color: _gearIcon,
+                                        size: _profileGearIconSize,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : FilledButton(
+                            onPressed: () => _openChat(context),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _headerGreen,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text('Message'),
+                          ),
                   ),
-                  if (widget.viewingSelf) ...[
-                    const SizedBox(width: 12),
-                    Material(
-                      color: _gearBg,
-                      borderRadius: BorderRadius.circular(14),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: () => _openEdit(context),
-                        child: const SizedBox(
-                          width: 52,
-                          height: 52,
-                          child: Icon(Icons.settings, color: _gearIcon),
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
               const SizedBox(height: 12),
-              if (widget.viewingSelf)
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => context.push('/connections'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: _headerGreen,
-                      side: const BorderSide(color: _headerGreen, width: 1.5),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text('Connections'),
-                  ),
-                )
-              else
+              if (!widget.viewingSelf)
                 ProfileConnectionButton(
                   otherUid: profile.uid,
                   otherDisplayName: profile.displayName,
                 ),
               const SizedBox(height: 28),
-              _StatCard(
+              _ConnectionsMetricCard(
+                userId: profile.uid,
+                tappable: widget.viewingSelf,
+              ),
+              const SizedBox(height: 16),
+              _ProfileMetricCard(
                 value: '${profile.eventsAttended}',
                 label: 'EVENTS ATTENDED',
                 valueColor: _headerGreen,
-                progress: _eventsProgress(profile.eventsAttended),
-                gradientColors: const [Color(0xFF9BC9A8), Color(0xFF2E7D5A)],
-                caption: profile.eventsProgressNote?.isNotEmpty == true
-                    ? profile.eventsProgressNote!
-                    : 'Top 5% active members',
               ),
               const SizedBox(height: 16),
-              _StatCard(
+              _ProfileMetricCard(
                 value: '${profile.requestsFulfilled}',
                 label: 'REQUESTS FULFILLED',
                 valueColor: _statBlue,
-                progress: _requestsProgress(profile.requestsFulfilled),
-                gradientColors: const [Color(0xFF9BB4D4), Color(0xFF3D5A80)],
-                caption: profile.requestsProgressNote?.isNotEmpty == true
-                    ? profile.requestsProgressNote!
-                    : 'Silver helper badge',
               ),
               if (widget.viewingSelf) ...[
                 const SizedBox(height: 24),
@@ -546,38 +550,28 @@ class _Initials extends StatelessWidget {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
+class _ProfileMetricCard extends StatelessWidget {
+  const _ProfileMetricCard({
     required this.value,
     required this.label,
     required this.valueColor,
-    required this.progress,
-    required this.gradientColors,
-    required this.caption,
   });
 
   final String value;
   final String label;
   final Color valueColor;
-  final double progress;
-  final List<Color> gradientColors;
-  final String caption;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 16,
-            offset: Offset(0, 6),
-          ),
+          BoxShadow(color: Color(0x12000000), blurRadius: 16, offset: Offset(0, 6)),
         ],
       ),
       child: Column(
@@ -601,38 +595,61 @@ class _StatCard extends StatelessWidget {
               color: const Color(0xFF6B6B6B),
             ),
           ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: SizedBox(
-              height: 10,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  ColoredBox(color: Colors.grey.shade200),
-                  FractionallySizedBox(
-                    widthFactor: progress,
-                    alignment: Alignment.centerLeft,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: gradientColors),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            caption,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.grey.shade500,
-              fontSize: 12,
-            ),
-          ),
         ],
       ),
+    );
+  }
+}
+
+class _ConnectionsMetricCard extends StatelessWidget {
+  const _ConnectionsMetricCard({
+    required this.userId,
+    required this.tappable,
+  });
+
+  final String userId;
+  final bool tappable;
+
+  @override
+  Widget build(BuildContext context) {
+    final svc = context.read<ConnectionService>();
+    return StreamBuilder<int>(
+      stream: svc.connectionCountStream(userId),
+      builder: (context, snap) {
+        final n = snap.data ?? 0;
+        final card = Stack(
+          clipBehavior: Clip.none,
+          children: [
+            _ProfileMetricCard(
+              value: '$n',
+              label: 'CONNECTIONS',
+              valueColor: _headerGreen,
+            ),
+            if (tappable)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: StreamBuilder<int>(
+                  stream: svc.incomingRequestCountStream(),
+                  builder: (context, pendingSnap) {
+                    final pending = pendingSnap.data ?? 0;
+                    if (pending <= 0) return const SizedBox.shrink();
+                    return PendingConnectionRequestsBadge(count: pending);
+                  },
+                ),
+              ),
+          ],
+        );
+        if (!tappable) return card;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => context.push('/connections'),
+            child: card,
+          ),
+        );
+      },
     );
   }
 }
@@ -684,15 +701,11 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
       );
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile saved')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile saved')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not save: $e')));
       }
     }
   }
@@ -721,7 +734,10 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
                 ),
               ),
             ),
-            Text('Edit profile', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              'Edit profile',
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
             const SizedBox(height: 20),
             TextField(
               controller: _name,

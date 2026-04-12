@@ -169,31 +169,31 @@ class _EventBody extends StatelessWidget {
               stream: eventService.myRsvpStream(event.id),
               builder: (context, snap) {
                 final current = snap.data?.status;
-                return Wrap(
-                  spacing: 8,
+                return Row(
                   children: [
-                    FilledButton(
-                      onPressed: () => eventService.setMyRsvp(event.id, RsvpStatus.going),
-                      child: const Text('Going'),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => eventService.setMyRsvp(event.id, RsvpStatus.maybe),
-                      child: const Text('Maybe'),
-                    ),
-                    TextButton(
-                      onPressed: () => eventService.setMyRsvp(event.id, RsvpStatus.declined),
-                      child: const Text('Can’t go'),
-                    ),
-                    if (current != null)
-                      Padding(
-                        padding: const EdgeInsets.only(left: 8),
-                        child: Center(
-                          child: Text(
-                            'You: ${current.name}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
+                    Expanded(
+                      child: _RsvpSegment(
+                        label: 'Going',
+                        selected: current == RsvpStatus.going,
+                        onPressed: () => eventService.setMyRsvp(event.id, RsvpStatus.going),
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _RsvpSegment(
+                        label: 'Maybe',
+                        selected: current == RsvpStatus.maybe,
+                        onPressed: () => eventService.setMyRsvp(event.id, RsvpStatus.maybe),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _RsvpSegment(
+                        label: 'Can’t go',
+                        selected: current == RsvpStatus.declined,
+                        onPressed: () => eventService.setMyRsvp(event.id, RsvpStatus.declined),
+                      ),
+                    ),
                   ],
                 );
               },
@@ -215,6 +215,8 @@ class _EventBody extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: going.map((r) {
+                    final myUid = user?.uid;
+                    final openOthersProfile = myUid != null && r.userId != myUid;
                     return FutureBuilder<String>(
                       future: _displayName(userProfileService, r.userId),
                       builder: (context, nameSnap) {
@@ -222,6 +224,13 @@ class _EventBody extends StatelessWidget {
                           dense: true,
                           leading: const Icon(Icons.person_outline),
                           title: Text(nameSnap.data ?? r.userId),
+                          trailing: openOthersProfile
+                              ? Icon(
+                                  Icons.chevron_right,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                )
+                              : null,
+                          onTap: openOthersProfile ? () => context.push('/u/${r.userId}') : null,
                         );
                       },
                     );
@@ -238,6 +247,50 @@ class _EventBody extends StatelessWidget {
   static Future<String> _displayName(UserProfileService svc, String uid) async {
     final p = await svc.fetchProfile(uid);
     return p?.displayName ?? uid;
+  }
+}
+
+/// Outlined when unselected (Maybe-style); filled primary when selected (Going-style).
+class _RsvpSegment extends StatelessWidget {
+  const _RsvpSegment({
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  static const _radius = RoundedRectangleBorder(
+    borderRadius: BorderRadius.all(Radius.circular(12)),
+  );
+  static const _padding = EdgeInsets.symmetric(vertical: 14, horizontal: 8);
+
+  @override
+  Widget build(BuildContext context) {
+    if (selected) {
+      return FilledButton(
+        onPressed: onPressed,
+        style: FilledButton.styleFrom(
+          padding: _padding,
+          shape: _radius,
+          minimumSize: const Size(0, 48),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+        child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+      );
+    }
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        padding: _padding,
+        shape: _radius,
+        minimumSize: const Size(0, 48),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+    );
   }
 }
 

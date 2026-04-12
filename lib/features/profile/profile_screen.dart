@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/models/user_account_type.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/services/connection_service.dart';
 import '../../core/services/messaging_service.dart';
@@ -684,6 +685,7 @@ class _ProfileEditSheet extends StatefulWidget {
 class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   late final TextEditingController _firstName;
   late final TextEditingController _lastName;
+  late final TextEditingController _entityName;
   late final TextEditingController _bio;
 
   @override
@@ -692,6 +694,13 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
     final p = widget.profile;
     _firstName = TextEditingController(text: p.firstName ?? '');
     _lastName = TextEditingController(text: p.lastName ?? '');
+    _entityName = TextEditingController(
+      text: p.accountType == UserAccountType.nonprofit
+          ? (p.organizationName ?? '')
+          : p.accountType == UserAccountType.business
+              ? (p.businessName ?? '')
+              : '',
+    );
     _bio = TextEditingController(text: p.bio ?? '');
   }
 
@@ -699,6 +708,7 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   void dispose() {
     _firstName.dispose();
     _lastName.dispose();
+    _entityName.dispose();
     _bio.dispose();
     super.dispose();
   }
@@ -718,18 +728,38 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   }
 
   Future<void> _save() async {
-    if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('First and last name are required.')));
-      return;
+    final p = widget.profile;
+    final t = p.accountType;
+    if (t == UserAccountType.personal) {
+      if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('First and last name are required.')),
+        );
+        return;
+      }
+    } else if (t == UserAccountType.nonprofit) {
+      if (_entityName.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Organization name is required.')),
+        );
+        return;
+      }
+    } else if (t == UserAccountType.business) {
+      if (_entityName.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Business name is required.')),
+        );
+        return;
+      }
     }
     final svc = context.read<UserProfileService>();
-    final p = widget.profile;
     try {
       await svc.updatePublicProfile(
-        firstName: _firstName.text,
-        lastName: _lastName.text,
+        accountType: t,
+        firstName: t == UserAccountType.personal ? _firstName.text : null,
+        lastName: t == UserAccountType.personal ? _lastName.text : null,
+        organizationName: t == UserAccountType.nonprofit ? _entityName.text : null,
+        businessName: t == UserAccountType.business ? _entityName.text : null,
         photoUrl: p.photoUrl?.trim().isNotEmpty == true ? p.photoUrl : null,
         bio: _bio.text.trim().isEmpty ? null : _bio.text,
         neighborhoodLabel: p.neighborhoodLabel?.trim().isNotEmpty == true
@@ -766,6 +796,7 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
           initialData: widget.profile,
           builder: (context, snap) {
             final live = snap.data ?? widget.profile;
+            final at = live.accountType;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
@@ -786,17 +817,29 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
                   style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 20),
-                TextField(
-                  controller: _firstName,
-                  decoration: const InputDecoration(labelText: 'First name'),
-                  textCapitalization: TextCapitalization.words,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _lastName,
-                  decoration: const InputDecoration(labelText: 'Last name'),
-                  textCapitalization: TextCapitalization.words,
-                ),
+                if (at == UserAccountType.personal) ...[
+                  TextField(
+                    controller: _firstName,
+                    decoration: const InputDecoration(labelText: 'First name'),
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _lastName,
+                    decoration: const InputDecoration(labelText: 'Last name'),
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                ] else ...[
+                  TextField(
+                    controller: _entityName,
+                    decoration: InputDecoration(
+                      labelText: at == UserAccountType.nonprofit
+                          ? 'Organization name'
+                          : 'Business name',
+                    ),
+                    textCapitalization: TextCapitalization.words,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextField(
                   controller: _bio,

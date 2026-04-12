@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/models/user_account_type.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/blob_from_object_url.dart';
@@ -14,7 +15,7 @@ import '../profile/set_home_area_sheet.dart';
 const _headerGreen = Color(0xFF2E7D5A);
 const _pageBackground = Color(0xFFF9F7F2);
 
-/// Required: first name, last name, home area ([SetHomeAreaSheet]). Optional: photo, bio.
+/// Required: name (first+last for personal, org/business name otherwise) + home area. Optional: photo, bio.
 class ProfileSetupScreen extends StatefulWidget {
   const ProfileSetupScreen({super.key});
 
@@ -25,10 +26,14 @@ class ProfileSetupScreen extends StatefulWidget {
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final _firstName = TextEditingController();
   final _lastName = TextEditingController();
+  final _entityName = TextEditingController();
   final _bio = TextEditingController();
   bool _saving = false;
   bool _uploadingPhoto = false;
   String? _error;
+  bool _hydratedFromProfile = false;
+  /// Must be stable across rebuilds; a new [Stream] each [build] resets [StreamBuilder] and flashes loading on every keystroke.
+  Stream<UserProfile?>? _profileStream;
 
   void _onNameFieldsChanged() {
     if (mounted) setState(() {});
@@ -39,16 +44,54 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     super.initState();
     _firstName.addListener(_onNameFieldsChanged);
     _lastName.addListener(_onNameFieldsChanged);
+    _entityName.addListener(_onNameFieldsChanged);
+    _bio.addListener(_onNameFieldsChanged);
   }
 
   @override
   void dispose() {
     _firstName.removeListener(_onNameFieldsChanged);
     _lastName.removeListener(_onNameFieldsChanged);
+    _entityName.removeListener(_onNameFieldsChanged);
+    _bio.removeListener(_onNameFieldsChanged);
     _firstName.dispose();
     _lastName.dispose();
+    _entityName.dispose();
     _bio.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (_profileStream == null && uid != null) {
+      _profileStream = context.read<UserProfileService>().profileStream(uid);
+    }
+  }
+
+  void _hydrateFromProfile(UserProfile p) {
+    if (_hydratedFromProfile) return;
+    _hydratedFromProfile = true;
+    if (p.accountType == UserAccountType.personal) {
+      if (p.firstName != null && p.firstName!.trim().isNotEmpty) {
+        _firstName.text = p.firstName!.trim();
+      }
+      if (p.lastName != null && p.lastName!.trim().isNotEmpty) {
+        _lastName.text = p.lastName!.trim();
+      }
+    } else if (p.accountType == UserAccountType.nonprofit) {
+      if (p.organizationName != null && p.organizationName!.trim().isNotEmpty) {
+        _entityName.text = p.organizationName!.trim();
+      }
+    } else if (p.accountType == UserAccountType.business) {
+      if (p.businessName != null && p.businessName!.trim().isNotEmpty) {
+        _entityName.text = p.businessName!.trim();
+      }
+    }
+    if (p.bio != null && p.bio!.trim().isNotEmpty) {
+      _bio.text = p.bio!.trim();
+    }
   }
 
   UserProfile _sheetProfile(User user, UserProfile? fromStream) {
@@ -120,9 +163,23 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   Future<void> _continue(User user, UserProfile? p) async {
-    if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
-      setState(() => _error = 'Please enter your first and last name.');
-      return;
+    final accountType = p?.accountType ?? UserAccountType.personal;
+    switch (accountType) {
+      case UserAccountType.personal:
+        if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
+          setState(() => _error = 'Please enter your first and last name.');
+          return;
+        }
+      case UserAccountType.nonprofit:
+        if (_entityName.text.trim().isEmpty) {
+          setState(() => _error = 'Please enter your organization name.');
+          return;
+        }
+      case UserAccountType.business:
+        if (_entityName.text.trim().isEmpty) {
+          setState(() => _error = 'Please enter your business name.');
+          return;
+        }
     }
     setState(() {
       _error = null;
@@ -130,9 +187,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     });
     final svc = context.read<UserProfileService>();
     try {
-      await svc.updateProfileNamesAndOptionalBio(
-        firstName: _firstName.text,
-        lastName: _lastName.text,
+      await svc.updateProfileSetupIdentityAndOptionalBio(
+        accountType: accountType,
+        firstName: accountType == UserAccountType.personal ? _firstName.text : null,
+        lastName: accountType == UserAccountType.personal ? _lastName.text : null,
+        organizationName: accountType == UserAccountType.nonprofit ? _entityName.text : null,
+        businessName: accountType == UserAccountType.business ? _entityName.text : null,
         bio: _bio.text.trim().isEmpty ? null : _bio.text,
       );
       final fresh = await svc.fetchProfile(user.uid);
@@ -162,20 +222,45 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       return const Scaffold(body: Center(child: Text('Sign in required.')));
     }
 
-    final svc = context.read<UserProfileService>();
+    final stream = _profileStream;
+    if (stream == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return Scaffold(
       backgroundColor: _pageBackground,
       body: SafeArea(
         child: StreamBuilder<UserProfile?>(
-          stream: svc.profileStream(user.uid),
+          stream: stream,
           builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
             final p = snap.data;
+            if (p != null) {
+              _hydrateFromProfile(p);
+            }
+            final accountType = p?.accountType ?? UserAccountType.personal;
             final homeOk = p?.homeGeoPoint != null;
-            final namesOk =
-                _firstName.text.trim().isNotEmpty && _lastName.text.trim().isNotEmpty;
+            final namesOk = switch (accountType) {
+              UserAccountType.personal =>
+                _firstName.text.trim().isNotEmpty && _lastName.text.trim().isNotEmpty,
+              UserAccountType.nonprofit => _entityName.text.trim().isNotEmpty,
+              UserAccountType.business => _entityName.text.trim().isNotEmpty,
+            };
             final requiredComplete = namesOk && homeOk;
             final theme = Theme.of(context);
+            final intro = switch (accountType) {
+              UserAccountType.personal =>
+                'We need your name and home area so neighbors and local feeds work. '
+                    'Photo and bio are optional.',
+              UserAccountType.nonprofit =>
+                'Add your organization name and home area so neighbors can find you. '
+                    'Photo and bio are optional.',
+              UserAccountType.business =>
+                'Add your business name and home area so neighbors can find you. '
+                    'Photo and bio are optional.',
+            };
 
             return Center(
               child: SingleChildScrollView(
@@ -191,24 +276,36 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'We need your name and home area so neighbors and local feeds work. '
-                        'Photo and bio are optional.',
+                        intro,
                         style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                       ),
                       const SizedBox(height: 28),
-                      TextField(
-                        controller: _firstName,
-                        decoration: const InputDecoration(labelText: 'First name'),
-                        textCapitalization: TextCapitalization.words,
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _lastName,
-                        decoration: const InputDecoration(labelText: 'Last name'),
-                        textCapitalization: TextCapitalization.words,
-                        textInputAction: TextInputAction.next,
-                      ),
+                      if (accountType == UserAccountType.personal) ...[
+                        TextField(
+                          controller: _firstName,
+                          decoration: const InputDecoration(labelText: 'First name'),
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _lastName,
+                          decoration: const InputDecoration(labelText: 'Last name'),
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                        ),
+                      ] else ...[
+                        TextField(
+                          controller: _entityName,
+                          decoration: InputDecoration(
+                            labelText: accountType == UserAccountType.nonprofit
+                                ? 'Organization name'
+                                : 'Business name',
+                          ),
+                          textCapitalization: TextCapitalization.words,
+                          textInputAction: TextInputAction.next,
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       TextField(
                         controller: _bio,

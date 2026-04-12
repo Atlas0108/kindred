@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Seeds Kindred with 3 demo users (Firebase Auth + `users` docs), 3 community-event posts,
- * 3 help-offer posts, and 3 help-request posts.
+ * Seeds Kindred with 5 demo users (Firebase Auth + `users` docs), 3 community-event posts,
+ * 3 help-offer posts, and 3 help-request posts (creators include nonprofit + business accounts).
  * Events use the same `posts` collection as offers/requests with kind `community_event` (see lib/core/models/post.dart).
  *
  *   If GOOGLE_APPLICATION_CREDENTIALS is unset, the script uses repo secrets/firebase-adminsdk.json
@@ -103,15 +103,34 @@ const demoUsers = [
     lat: 37.7308,
     lng: -122.3834,
   },
+  {
+    email: 'kindred-demo-social-good-fund@example.invalid',
+    displayName: 'Social Good Fund',
+    accountType: 'nonprofit',
+    organizationName: 'Social Good Fund',
+    neighborhood: 'Portland Metro',
+    lat: 45.5152,
+    lng: -122.6784,
+  },
+  {
+    email: 'kindred-demo-mazlo@example.invalid',
+    displayName: 'Mazlo',
+    accountType: 'business',
+    businessName: 'Mazlo',
+    neighborhood: 'Pearl District',
+    lat: 45.5253,
+    lng: -122.6844,
+  },
 ];
 
+/** organizerIndex / authorIndex: 0–2 personal demos, 3 = Social Good Fund (nonprofit), 4 = Mazlo (business). */
 const demoEvents = [
   {
     title: 'Community garden workday',
     description:
       'Mulch paths, plant winter greens, and share tools. Gloves provided; bring a water bottle.',
     locationDescription: 'SE Portland community garden — meet at the tool shed',
-    organizerIndex: 0,
+    organizerIndex: 3,
     startsInDays: 3,
     durationHours: 3,
   },
@@ -120,7 +139,7 @@ const demoEvents = [
     description:
       'Bring a dish to share (label ingredients). Live music and kids’ craft table in the back.',
     locationDescription: 'Alberta Arts district — check the map pin for the cross street',
-    organizerIndex: 1,
+    organizerIndex: 4,
     startsInDays: 10,
     durationHours: 4,
   },
@@ -137,37 +156,37 @@ const demoEvents = [
 
 const demoOffers = [
   {
+    authorIndex: 3,
+    title: 'Grant-writing office hours (virtual)',
+    body: 'Social Good Fund is offering two 30-minute slots this week for small neighborhood projects — questions on applications, budgets, or timelines welcome.',
+  },
+  {
+    authorIndex: 4,
+    title: 'Complimentary tastings — new spring menu',
+    body: 'Mazlo is sampling our spring pastries and pour-over bar Saturday 9–12; stop by and say hi to the team.',
+  },
+  {
     authorIndex: 0,
     title: 'Free compost delivery',
     body: 'I have extra finished compost from my bins — happy to drop off a few buckets within 2 miles.',
-  },
-  {
-    authorIndex: 1,
-    title: 'Loan power tools for weekend projects',
-    body: 'Circular saw, drill, and ladder available Fri–Sun if you pick up and return in good shape.',
-  },
-  {
-    authorIndex: 2,
-    title: 'Dog walking when you travel',
-    body: 'I WFH and walk my pup daily — can add yours for short trips (small/medium dogs).',
   },
 ];
 
 const demoRequests = [
   {
-    authorIndex: 0,
-    title: 'Need a ride to grocery store',
-    body: 'My car is in the shop for a few days — looking for someone heading near the co-op Saturday morning.',
+    authorIndex: 4,
+    title: 'Borrow a folding table for weekend pop-up',
+    body: 'Mazlo needs one sturdy 6-foot folding table Sat–Sun for a sidewalk tasting; will pick up and return clean.',
+  },
+  {
+    authorIndex: 3,
+    title: 'Volunteers for supply sorting day',
+    body: 'Social Good Fund needs 4–6 people for a 3-hour sort at our warehouse — gloves and snacks provided.',
   },
   {
     authorIndex: 1,
     title: 'Help setting up a used laptop',
     body: 'Bought a refurbished Mac for my kid; would love 30 minutes with someone patient to get accounts and parental controls sorted.',
-  },
-  {
-    authorIndex: 2,
-    title: 'Borrow a tall ladder for gutter check',
-    body: 'Two-story house; just need to peek at gutters after the last storm. Will return same day.',
   },
 ];
 
@@ -188,8 +207,10 @@ async function getOrCreateUser({ email, password, displayName }) {
 
 async function seedUserDoc(uid, u) {
   const gp = new GeoPoint(u.lat, u.lng);
+  const accountType = u.accountType || 'personal';
   const data = {
     displayName: u.displayName,
+    accountType,
     discoveryRadiusMiles: 25,
     karma: 12,
     createdAt: Timestamp.now(),
@@ -198,6 +219,18 @@ async function seedUserDoc(uid, u) {
     eventsAttended: 4,
     requestsFulfilled: 2,
   };
+  const FieldValue = admin.firestore.FieldValue;
+  if (accountType === 'nonprofit') {
+    data.organizationName = u.organizationName || u.displayName;
+    data.firstName = FieldValue.delete();
+    data.lastName = FieldValue.delete();
+    data.businessName = FieldValue.delete();
+  } else if (accountType === 'business') {
+    data.businessName = u.businessName || u.displayName;
+    data.firstName = FieldValue.delete();
+    data.lastName = FieldValue.delete();
+    data.organizationName = FieldValue.delete();
+  }
   await db.collection('users').doc(uid).set(data, { merge: true });
 }
 

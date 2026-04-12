@@ -1,11 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'user_account_type.dart';
+
 class UserProfile {
   const UserProfile({
     required this.uid,
     required this.displayName,
+    this.accountType = UserAccountType.personal,
     this.firstName,
     this.lastName,
+    this.organizationName,
+    this.businessName,
     this.photoUrl,
     this.bio,
     this.homeGeoPoint,
@@ -24,8 +29,13 @@ class UserProfile {
 
   final String uid;
   final String displayName;
+  final UserAccountType accountType;
   final String? firstName;
   final String? lastName;
+  /// Nonprofit accounts: public name (replaces first + last in UI).
+  final String? organizationName;
+  /// Business accounts: public name (replaces first + last in UI).
+  final String? businessName;
   final String? photoUrl;
   /// Short about text; shown on profile.
   final String? bio;
@@ -55,8 +65,15 @@ class UserProfile {
     return d;
   }
 
-  /// Public-facing name: "First Last" when set, else legacy [displayName] (if not placeholder).
+  /// Public-facing name: org/business name, or "First Last", else legacy [displayName].
   String get publicDisplayLabel {
+    if (accountType == UserAccountType.nonprofit) {
+      final o = organizationName?.trim() ?? '';
+      if (o.isNotEmpty) return o;
+    } else if (accountType == UserAccountType.business) {
+      final b = businessName?.trim() ?? '';
+      if (b.isNotEmpty) return b;
+    }
     final f = firstName?.trim() ?? '';
     final l = lastName?.trim() ?? '';
     final combined = '$f $l'.trim();
@@ -66,11 +83,19 @@ class UserProfile {
     return 'Neighbor';
   }
 
-  /// First name, last name, and home map pin are required before the rest of the app.
+  /// Identity + home map pin are required before the rest of the app.
   bool get isProfileSetupComplete {
-    final f = firstName?.trim() ?? '';
-    final l = lastName?.trim() ?? '';
-    return f.isNotEmpty && l.isNotEmpty && homeGeoPoint != null;
+    if (homeGeoPoint == null) return false;
+    switch (accountType) {
+      case UserAccountType.personal:
+        final f = firstName?.trim() ?? '';
+        final l = lastName?.trim() ?? '';
+        return f.isNotEmpty && l.isNotEmpty;
+      case UserAccountType.nonprofit:
+        return (organizationName?.trim() ?? '').isNotEmpty;
+      case UserAccountType.business:
+        return (businessName?.trim() ?? '').isNotEmpty;
+    }
   }
 
   static UserProfile fromDoc(String uid, Map<String, dynamic> data) {
@@ -78,13 +103,18 @@ class UserProfile {
     final rawBio = (data['bio'] as String?)?.trim();
     final fn = (data['firstName'] as String?)?.trim();
     final ln = (data['lastName'] as String?)?.trim();
+    final org = (data['organizationName'] as String?)?.trim();
+    final biz = (data['businessName'] as String?)?.trim();
     return UserProfile(
       uid: uid,
       displayName: (data['displayName'] as String?)?.trim().isNotEmpty == true
           ? data['displayName'] as String
           : 'Neighbor',
+      accountType: UserAccountType.fromFirestore(data['accountType']),
       firstName: fn != null && fn.isNotEmpty ? fn : null,
       lastName: ln != null && ln.isNotEmpty ? ln : null,
+      organizationName: org != null && org.isNotEmpty ? org : null,
+      businessName: biz != null && biz.isNotEmpty ? biz : null,
       photoUrl: data['photoUrl'] as String?,
       bio: rawBio != null && rawBio.isNotEmpty ? rawBio : null,
       homeGeoPoint: home is GeoPoint ? home : null,
@@ -109,8 +139,13 @@ class UserProfile {
   Map<String, dynamic> toWriteMap() {
     return {
       'displayName': displayName,
+      'accountType': accountType.firestoreValue,
       if (firstName != null && firstName!.trim().isNotEmpty) 'firstName': firstName!.trim(),
       if (lastName != null && lastName!.trim().isNotEmpty) 'lastName': lastName!.trim(),
+      if (organizationName != null && organizationName!.trim().isNotEmpty)
+        'organizationName': organizationName!.trim(),
+      if (businessName != null && businessName!.trim().isNotEmpty)
+        'businessName': businessName!.trim(),
       if (photoUrl != null && photoUrl!.trim().isNotEmpty) 'photoUrl': photoUrl!.trim(),
       if (bio != null && bio!.trim().isNotEmpty) 'bio': bio!.trim(),
       if (homeGeoPoint != null) 'homeGeoPoint': homeGeoPoint,

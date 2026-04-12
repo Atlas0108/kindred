@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 
 import '../kindred_trace.dart';
+import '../models/user_account_type.dart';
 import '../models/user_profile.dart';
 import '../utils/cover_image_prepare.dart';
 
@@ -191,7 +192,13 @@ class UserProfileService {
 
   /// Creates `users/{uid}` if it does not exist. Called after sign-in; errors are ignored.
   /// Skips creation when the account has no email (Kindred treats email + display name as the minimum public identity).
-  Future<void> ensureProfile({required String displayName}) async {
+  ///
+  /// When [accountType] is non-null and the document already exists (e.g. another listener created it first),
+  /// [accountType] is merged so registration can still record nonprofit/business after a race.
+  Future<void> ensureProfile({
+    required String displayName,
+    UserAccountType? accountType,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) {
       kindredTrace('UserProfileService.ensureProfile skip (no user)');
@@ -209,6 +216,21 @@ class UserProfileService {
       final snap = await ref.get().timeout(_ensureProfileTimeout);
       kindredTrace('UserProfileService.ensureProfile after .get()', 'exists=${snap.exists}');
       if (snap.exists) {
+        if (accountType != null) {
+          kindredTrace('UserProfileService.ensureProfile merge accountType', accountType.firestoreValue);
+          try {
+            await ref
+                .set(
+                  {'accountType': accountType.firestoreValue},
+                  SetOptions(merge: true),
+                )
+                .timeout(_ensureProfileTimeout);
+          } on TimeoutException {
+            kindredTrace('UserProfileService.ensureProfile accountType merge timed out', user.uid);
+            return;
+          }
+          invalidateProfileCache();
+        }
         kindredTrace('UserProfileService.ensureProfile done (doc already exists)');
         return;
       }
@@ -218,9 +240,11 @@ class UserProfileService {
     }
     kindredTrace('UserProfileService.ensureProfile before .set() create user doc');
     final storedName = displayNameForStorage(user, displayName);
+    final type = accountType ?? UserAccountType.personal;
     try {
       await ref.set({
         'displayName': storedName,
+        'accountType': type.firestoreValue,
         'discoveryRadiusMiles': 25,
         'karma': 0,
         'createdAt': Timestamp.fromDate(DateTime.now().toUtc()),
@@ -298,40 +322,78 @@ class UserProfileService {
 
   static const int maxBioLength = 500;
 
-  /// Saves first/last name and optional bio during profile setup (home is set via [updateHomeAndRadius]).
-  Future<void> updateProfileNamesAndOptionalBio({
-    required String firstName,
-    required String lastName,
+  /// Saves identity + optional bio during profile setup (home is set via [updateHomeAndRadius]).
+  Future<void> updateProfileSetupIdentityAndOptionalBio({
+    required UserAccountType accountType,
+    String? firstName,
+    String? lastName,
+    String? organizationName,
+    String? businessName,
     String? bio,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
-    final f = firstName.trim();
-    final l = lastName.trim();
-    if (f.isEmpty || l.isEmpty) {
-      throw ArgumentError('First and last name are required.');
+
+    final data = <String, dynamic>{};
+    String authDisplayName;
+
+    switch (accountType) {
+      case UserAccountType.personal:
+        final f = firstName?.trim() ?? '';
+        final l = lastName?.trim() ?? '';
+        if (f.isEmpty || l.isEmpty) {
+          throw ArgumentError('First and last name are required.');
+        }
+        final combined = '$f $l'.trim();
+        data['firstName'] = f;
+        data['lastName'] = l;
+        data['organizationName'] = FieldValue.delete();
+        data['businessName'] = FieldValue.delete();
+        data['displayName'] = displayNameForStorage(user, combined);
+        authDisplayName = combined;
+      case UserAccountType.nonprofit:
+        final o = organizationName?.trim() ?? '';
+        if (o.isEmpty) {
+          throw ArgumentError('Organization name is required.');
+        }
+        data['organizationName'] = o;
+        data['firstName'] = FieldValue.delete();
+        data['lastName'] = FieldValue.delete();
+        data['businessName'] = FieldValue.delete();
+        data['displayName'] = displayNameForStorage(user, o);
+        authDisplayName = o;
+      case UserAccountType.business:
+        final b = businessName?.trim() ?? '';
+        if (b.isEmpty) {
+          throw ArgumentError('Business name is required.');
+        }
+        data['businessName'] = b;
+        data['firstName'] = FieldValue.delete();
+        data['lastName'] = FieldValue.delete();
+        data['organizationName'] = FieldValue.delete();
+        data['displayName'] = displayNameForStorage(user, b);
+        authDisplayName = b;
     }
-    final combined = '$f $l'.trim();
-    final data = <String, dynamic>{
-      'firstName': f,
-      'lastName': l,
-      'displayName': displayNameForStorage(user, combined),
-    };
+
     final bioTrim = bio?.trim();
     if (bioTrim != null && bioTrim.isNotEmpty) {
       data['bio'] = bioTrim.length > maxBioLength ? bioTrim.substring(0, maxBioLength) : bioTrim;
     }
+
     await _userRef(user.uid).set(data, SetOptions(merge: true));
     try {
-      await user.updateDisplayName(combined);
+      await user.updateDisplayName(authDisplayName);
     } on Object catch (_) {}
     invalidateProfileCache();
   }
 
   /// Updates the signed-in user’s public profile fields (merge). Empty strings clear optional fields.
   Future<void> updatePublicProfile({
-    required String firstName,
-    required String lastName,
+    required UserAccountType accountType,
+    String? firstName,
+    String? lastName,
+    String? organizationName,
+    String? businessName,
     required String? photoUrl,
     required String? bio,
     required String? neighborhoodLabel,
@@ -343,18 +405,51 @@ class UserProfileService {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
 
-    final f = firstName.trim();
-    final l = lastName.trim();
-    final combined = '$f $l'.trim();
-
     final data = <String, dynamic>{
-      'firstName': f,
-      'lastName': l,
-      'displayName': displayNameForStorage(user, combined.isEmpty ? 'Neighbor' : combined),
       'profileTags': FieldValue.delete(),
       'eventsAttended': eventsAttended.clamp(0, 9999),
       'requestsFulfilled': requestsFulfilled.clamp(0, 9999),
     };
+
+    String storedDisplay;
+    switch (accountType) {
+      case UserAccountType.personal:
+        final f = firstName?.trim() ?? '';
+        final l = lastName?.trim() ?? '';
+        if (f.isEmpty || l.isEmpty) {
+          throw ArgumentError('First and last name are required.');
+        }
+        final combined = '$f $l'.trim();
+        data['firstName'] = f;
+        data['lastName'] = l;
+        data['organizationName'] = FieldValue.delete();
+        data['businessName'] = FieldValue.delete();
+        storedDisplay = combined;
+      case UserAccountType.nonprofit:
+        final o = organizationName?.trim() ?? '';
+        if (o.isEmpty) {
+          throw ArgumentError('Organization name is required.');
+        }
+        data['organizationName'] = o;
+        data['firstName'] = FieldValue.delete();
+        data['lastName'] = FieldValue.delete();
+        data['businessName'] = FieldValue.delete();
+        storedDisplay = o;
+      case UserAccountType.business:
+        final b = businessName?.trim() ?? '';
+        if (b.isEmpty) {
+          throw ArgumentError('Business name is required.');
+        }
+        data['businessName'] = b;
+        data['firstName'] = FieldValue.delete();
+        data['lastName'] = FieldValue.delete();
+        data['organizationName'] = FieldValue.delete();
+        storedDisplay = b;
+    }
+    data['displayName'] = displayNameForStorage(
+      user,
+      storedDisplay.isEmpty ? 'Neighbor' : storedDisplay,
+    );
 
     final pu = photoUrl?.trim();
     if (pu == null || pu.isEmpty) {
@@ -392,6 +487,9 @@ class UserProfileService {
     }
 
     await _userRef(user.uid).set(data, SetOptions(merge: true));
+    try {
+      await user.updateDisplayName(storedDisplay.isEmpty ? null : storedDisplay);
+    } on Object catch (_) {}
     invalidateProfileCache();
   }
 }

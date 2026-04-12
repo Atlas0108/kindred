@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/kindred_trace.dart';
+import '../../core/models/user_account_type.dart';
 import '../../core/services/user_profile_service.dart';
 
 String _formatAuthError(FirebaseAuthException e) {
@@ -53,6 +54,7 @@ class _SignInScreenState extends State<SignInScreen> {
   bool _register = false;
   bool _busy = false;
   String? _error;
+  UserAccountType _accountType = UserAccountType.personal;
 
   @override
   void initState() {
@@ -77,20 +79,6 @@ class _SignInScreenState extends State<SignInScreen> {
     _email.dispose();
     _password.dispose();
     super.dispose();
-  }
-
-  Future<void> _ensureProfileInBackground(UserProfileService svc) async {
-    kindredTrace('SignIn._ensureProfileInBackground start', 'Neighbor');
-    try {
-      await svc.ensureProfile(displayName: 'Neighbor');
-      kindredTrace('SignIn._ensureProfileInBackground done OK');
-    } catch (e, st) {
-      kindredTrace('SignIn._ensureProfileInBackground catch (ignored)', e);
-      assert(() {
-        kindredTrace('SignIn._ensureProfileInBackground stack', st);
-        return true;
-      }());
-    }
   }
 
   Future<void> _submit() async {
@@ -129,10 +117,39 @@ class _SignInScreenState extends State<SignInScreen> {
       }
 
       kindredTrace('SignIn._submit currentUser', u.uid);
+
+      if (_register) {
+        kindredTrace('SignIn._submit ensureProfile (register)', _accountType.firestoreValue);
+        try {
+          await userProfileService.ensureProfile(
+            displayName: 'Neighbor',
+            accountType: _accountType,
+          );
+        } catch (e, st) {
+          kindredTrace('SignIn._submit ensureProfile catch (ignored)', e);
+          assert(() {
+            kindredTrace('SignIn._submit ensureProfile stack', st);
+            return true;
+          }());
+        }
+        if (!mounted) return;
+      } else {
+        unawaited(() async {
+          try {
+            await userProfileService.ensureProfile(displayName: 'Neighbor');
+          } catch (e, st) {
+            kindredTrace('SignIn._ensureProfile catch (ignored)', e);
+            assert(() {
+              kindredTrace('SignIn._ensureProfile stack', st);
+              return true;
+            }());
+          }
+        }());
+      }
+
       didRequestNavigation = true;
       kindredTrace('SignIn._submit context.go(/home)');
       if (mounted) context.go('/home');
-      unawaited(_ensureProfileInBackground(userProfileService));
     } on FirebaseAuthException catch (e) {
       kindredTrace('SignIn._submit FirebaseAuthException', e.code);
       setState(() => _error = _formatAuthError(e));
@@ -151,69 +168,135 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
+  static String _accountTypeLabel(UserAccountType t) {
+    return switch (t) {
+      UserAccountType.personal => 'Personal',
+      UserAccountType.nonprofit => 'Nonprofit',
+      UserAccountType.business => 'Business',
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: AutofillGroup(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text('Kindred', style: Theme.of(context).textTheme.headlineMedium),
-                  const SizedBox(height: 8),
-                  Text(
-                    _register ? 'Create an account' : 'Sign in',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 24),
-                  TextField(
-                    controller: _email,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _password,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    obscureText: true,
-                    autofillHints: const [AutofillHints.password],
-                    onSubmitted: (_) => _busy ? null : _submit(),
-                  ),
-                  if (_error != null) ...[
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: AutofillGroup(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Kindred', style: theme.textTheme.headlineMedium),
+                    const SizedBox(height: 8),
+                    Text(
+                      _register ? 'Create an account' : 'Sign in',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: _email,
+                      decoration: const InputDecoration(labelText: 'Email'),
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
+                      textInputAction: TextInputAction.next,
+                    ),
                     const SizedBox(height: 12),
-                    SelectableText(
-                      _error!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error, height: 1.35),
+                    TextField(
+                      controller: _password,
+                      decoration: const InputDecoration(labelText: 'Password'),
+                      obscureText: true,
+                      autofillHints: const [AutofillHints.password],
+                      onSubmitted: (_) => _busy ? null : _submit(),
+                    ),
+                    if (_register) ...[
+                      const SizedBox(height: 20),
+                      Text(
+                        'Account type',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Neighbors see this on your profile.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      ...UserAccountType.values.map((t) {
+                        final selected = _accountType == t;
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Material(
+                            color: selected
+                                ? theme.colorScheme.primaryContainer
+                                : theme.colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              onTap: _busy ? null : () => setState(() => _accountType = t),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      selected
+                                          ? Icons.radio_button_checked
+                                          : Icons.radio_button_off,
+                                      size: 22,
+                                      color: selected
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        _accountTypeLabel(t),
+                                        style: theme.textTheme.titleSmall,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                    if (_error != null) ...[
+                      const SizedBox(height: 12),
+                      SelectableText(
+                        _error!,
+                        style: TextStyle(color: theme.colorScheme.error, height: 1.35),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: _busy ? null : _submit,
+                      child: _busy
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(_register ? 'Register' : 'Sign in'),
+                    ),
+                    TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() {
+                                _register = !_register;
+                                _error = null;
+                                _accountType = UserAccountType.personal;
+                              }),
+                      child: Text(_register ? 'Have an account? Sign in' : 'Need an account? Register'),
                     ),
                   ],
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: _busy ? null : _submit,
-                    child: _busy
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Text(_register ? 'Register' : 'Sign in'),
-                  ),
-                  TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => setState(() {
-                              _register = !_register;
-                              _error = null;
-                            }),
-                    child: Text(_register ? 'Have an account? Sign in' : 'Need an account? Register'),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

@@ -110,6 +110,17 @@ class MessagingService {
         });
   }
 
+  /// Count of threads with unread messages for the signed-in user (same rules as [DirectConversation.hasUnreadFor]).
+  Stream<int> unreadInboxCountStream() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      return const Stream.empty();
+    }
+    return myConversationsStream().map(
+      (list) => list.where((c) => c.hasUnreadFor(uid)).length,
+    );
+  }
+
   Stream<DirectConversation?> conversationStream(String conversationId) {
     return _conversations.doc(conversationId).snapshots().map(DirectConversation.fromDoc);
   }
@@ -144,8 +155,22 @@ class MessagingService {
     batch.update(convRef, {
       'lastMessageText': trimmed,
       'lastMessageAt': now,
+      'lastMessageSenderId': me.uid,
       'updatedAt': now,
     });
     await batch.commit();
+  }
+
+  /// Marks the latest messages as read for the signed-in user (typically when the chat is open).
+  Future<void> markConversationRead(String conversationId) async {
+    final me = _auth.currentUser;
+    if (me == null) return;
+    try {
+      await _conversations.doc(conversationId).update({
+        'lastReadAtByUser.${me.uid}': FieldValue.serverTimestamp(),
+      });
+    } on FirebaseException catch (_) {
+      // Conversation may not exist yet (e.g. profile → chat before first send).
+    }
   }
 }

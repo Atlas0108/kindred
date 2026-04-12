@@ -123,23 +123,58 @@ class InboxScreen extends StatelessWidget {
                         ? timeFmt.format(t)
                         : dateFmt.format(t);
                     final initial = _conversationInitial(title);
+                    final unread = c.hasUnreadFor(myUid);
 
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
                       leading: CircleAvatar(
+                        backgroundColor: unread ? theme.colorScheme.primaryContainer : null,
                         child: Text(initial),
                       ),
-                      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: unread ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                      ),
                       subtitle: Text(
                         preview,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: Text(
-                        sub,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: unread ? FontWeight.w500 : FontWeight.w400,
+                          color: unread
+                              ? theme.colorScheme.onSurface
+                              : theme.colorScheme.onSurfaceVariant,
                         ),
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            sub,
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: unread
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurfaceVariant,
+                              fontWeight: unread ? FontWeight.w600 : FontWeight.w400,
+                            ),
+                          ),
+                          if (unread) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFE53935),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       onTap: () => context.push(
                         '/chat/${c.id}',

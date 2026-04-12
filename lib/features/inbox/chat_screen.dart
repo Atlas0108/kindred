@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -39,6 +41,23 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
   /// After [ensureDirectConversation] runs for profile/post → chat navigation.
   bool _conversationEnsured = false;
+  StreamSubscription<DirectConversation?>? _conversationReadSub;
+  String? _readTrackingConversationId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_readTrackingConversationId == widget.conversationId) return;
+    _readTrackingConversationId = widget.conversationId;
+    _conversationReadSub?.cancel();
+    final svc = context.read<MessagingService>();
+    _conversationReadSub = svc.conversationStream(widget.conversationId).listen((conv) {
+      if (!mounted || conv == null) return;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null || !conv.hasUnreadFor(uid)) return;
+      unawaited(svc.markConversationRead(widget.conversationId));
+    });
+  }
 
   /// Creates `conversations/{id}` only when sending the first message (not on open).
   Future<void> _ensureConversation() async {
@@ -63,6 +82,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _conversationReadSub?.cancel();
     _text.dispose();
     super.dispose();
   }

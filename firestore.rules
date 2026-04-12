@@ -1,8 +1,99 @@
 rules_version = '2';
-// TEMPORARY TEST RULES: any signed-in user can read/write the entire database.
-// Revert to the previous rules (git checkout firestore.rules) before any real users or production.
+// Chat: strict access on conversations + messages. Other paths still use the
+// permissive rule at the bottom until you lock down users/posts/events.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function uid() {
+      return request.auth.uid;
+    }
+
+    match /conversations/{convId} {
+
+      function convPath() {
+        return /databases/$(database)/documents/conversations/$(convId);
+      }
+
+      function conversationExists() {
+        return exists(convPath());
+      }
+
+      function isConversationParticipant() {
+        return signedIn()
+          && conversationExists()
+          && resource.data.participantIds is list
+          && resource.data.participantIds.size() == 2
+          && uid() in resource.data.participantIds;
+      }
+
+      function willBeConversationParticipant() {
+        return signedIn()
+          && request.resource.data.participantIds is list
+          && request.resource.data.participantIds.size() == 2
+          && uid() in request.resource.data.participantIds
+          && request.resource.data.participantIds[0] is string
+          && request.resource.data.participantIds[1] is string
+          && request.resource.data.participantIds[0] != request.resource.data.participantIds[1];
+      }
+
+      function participantIdsUnchanged() {
+        return request.resource.data.participantIds == resource.data.participantIds;
+      }
+
+      // Allow listening before the doc exists (client creates right after); otherwise members only.
+      allow read: if signedIn()
+        && (
+          !conversationExists()
+          || isConversationParticipant()
+        );
+
+      allow create: if willBeConversationParticipant()
+        && request.resource.data.keys().hasAll([
+          'participantIds',
+          'participantNames',
+          'lastMessageText',
+          'lastMessageAt',
+          'updatedAt',
+          'createdAt',
+        ]);
+
+      allow update: if signedIn()
+        && isConversationParticipant()
+        && participantIdsUnchanged();
+
+      allow delete: if false;
+
+      match /messages/{msgId} {
+
+        function convParticipants() {
+          return get(convPath()).data.participantIds;
+        }
+
+        allow read: if signedIn()
+          && conversationExists()
+          && convParticipants() is list
+          && convParticipants().size() == 2
+          && uid() in convParticipants();
+
+        allow create: if signedIn()
+          && conversationExists()
+          && convParticipants().size() == 2
+          && uid() in convParticipants()
+          && request.resource.data.keys().hasAll(['senderId', 'text', 'createdAt'])
+          && request.resource.data.senderId == uid()
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 8000;
+
+        allow update, delete: if false;
+      }
+    }
+
+    // TEMPORARY: rest of the app (users, posts, events, etc.)
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

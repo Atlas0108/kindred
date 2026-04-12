@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +11,7 @@ import '../../core/services/event_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/event_formatting.dart';
 import '../../core/utils/link_utils.dart';
+import '../../widgets/message_poster_button.dart';
 import '../../widgets/post_author_row.dart';
 
 class EventDetailScreen extends StatelessWidget {
@@ -21,8 +21,6 @@ class EventDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ref = FirebaseFirestore.instance.collection('events').doc(eventId);
-
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -31,13 +29,17 @@ class EventDetailScreen extends StatelessWidget {
         ),
         title: const Text('Event'),
       ),
-      body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-        stream: ref.snapshots(),
+      body: StreamBuilder(
+        stream: context.read<EventService>().watchEventDocument(eventId),
         builder: (context, snap) {
-          if (!snap.hasData || !snap.data!.exists) {
+          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final doc = snap.data;
+          if (doc == null || !doc.exists) {
             return const Center(child: Text('Event not found'));
           }
-          final event = CommunityEvent.fromDoc(snap.data!);
+          final event = CommunityEvent.fromFirestoreDoc(doc);
           if (event == null) {
             return const Center(child: Text('Invalid event'));
           }
@@ -48,13 +50,54 @@ class EventDetailScreen extends StatelessWidget {
   }
 }
 
-class _EventBody extends StatelessWidget {
+class _EventBody extends StatefulWidget {
   const _EventBody({required this.event});
 
   final CommunityEvent event;
 
   @override
+  State<_EventBody> createState() => _EventBodyState();
+}
+
+class _EventBodyState extends State<_EventBody> {
+  bool _deleting = false;
+
+  Future<void> _confirmAndDeleteEvent() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete event?'),
+        content: const Text("This can't be undone."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _deleting = true);
+    try {
+      await context.read<EventService>().deleteEvent(widget.event);
+      if (mounted) context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final event = widget.event;
     final user = FirebaseAuth.instance.currentUser;
     final isOrganizer = user?.uid == event.organizerId;
     final eventService = context.read<EventService>();
@@ -105,10 +148,30 @@ class _EventBody extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           if (event.organizerId.isNotEmpty) ...[
-            PostAuthorTapRow(
-              authorId: event.organizerId,
-              authorName: event.organizerName.trim().isNotEmpty ? event.organizerName.trim() : 'Organizer',
-              prefix: 'Led by ',
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: PostAuthorTapRow(
+                    authorId: event.organizerId,
+                    authorName: event.organizerName.trim().isNotEmpty
+                        ? event.organizerName.trim()
+                        : 'Organizer',
+                    prefix: 'Led by ',
+                    avatarRadius: 20,
+                    textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 14,
+                        ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                MessagePosterButton(
+                  authorId: event.organizerId,
+                  authorName:
+                      event.organizerName.trim().isNotEmpty ? event.organizerName.trim() : 'Organizer',
+                ),
+              ],
             ),
             const SizedBox(height: 8),
           ] else if (event.organizerName.isNotEmpty) ...[
@@ -237,6 +300,31 @@ class _EventBody extends StatelessWidget {
                   }).toList(),
                 );
               },
+            ),
+          ],
+          if (isOrganizer) ...[
+            const SizedBox(height: 32),
+            OutlinedButton(
+              onPressed: () => context.push('/event/${event.id}/edit'),
+              child: const Text('Edit Event'),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              onPressed: _deleting ? null : _confirmAndDeleteEvent,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+                side: BorderSide(color: Theme.of(context).colorScheme.error),
+              ),
+              child: _deleting
+                  ? SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    )
+                  : const Text('Delete Event'),
             ),
           ],
         ],

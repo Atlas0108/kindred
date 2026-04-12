@@ -15,6 +15,7 @@ import '../../core/services/event_service.dart';
 import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/event_formatting.dart';
+import '../../core/utils/merge_community_events.dart';
 import '../../core/constants/default_geo.dart';
 import '../../widgets/post_author_row.dart';
 
@@ -36,7 +37,7 @@ class DiscoveryFeedTab extends StatefulWidget {
 
 class _DiscoveryFeedTabState extends State<DiscoveryFeedTab> {
   List<KindredPost> _posts = [];
-  List<CommunityEvent> _events = [];
+  List<CommunityEvent> _legacyEvents = [];
   StreamSubscription<List<KindredPost>>? _postSub;
   StreamSubscription<List<CommunityEvent>>? _eventSub;
   String? _discoverySubKey;
@@ -65,7 +66,7 @@ class _DiscoveryFeedTabState extends State<DiscoveryFeedTab> {
       if (mounted) setState(() => _posts = list);
     });
     _eventSub = events.eventsInRadius(center: center, radiusMiles: radius).listen((list) {
-      if (mounted) setState(() => _events = list);
+      if (mounted) setState(() => _legacyEvents = list);
     });
   }
 
@@ -87,9 +88,11 @@ class _DiscoveryFeedTabState extends State<DiscoveryFeedTab> {
         final radiusMiles = profile?.discoveryRadiusMiles ?? 25;
         _attachDiscoveryIfNeeded(center, radiusMiles);
 
+        final helpPosts = _posts.where((p) => p.kind != PostKind.communityEvent).toList();
+        final mergedEvents = mergeLegacyAndPostEventRows(_legacyEvents, _posts);
         final rows = <_FeedRow>[
-          ..._posts.map(_FeedRow.post),
-          ..._events.map(_FeedRow.event),
+          ...helpPosts.map(_FeedRow.post),
+          ...mergedEvents.map(_FeedRow.event),
         ]..sort((a, b) => b.sortTime.compareTo(a.sortTime));
 
         return Scaffold(
@@ -121,12 +124,12 @@ class _PostTile extends StatelessWidget {
     final color = switch (post.kind) {
       PostKind.helpOffer => Colors.green.shade700,
       PostKind.helpRequest => Colors.blue.shade700,
-      PostKind.thankYou => Colors.amber.shade800,
+      PostKind.communityEvent => Colors.deepOrange.shade700,
     };
     final label = switch (post.kind) {
       PostKind.helpOffer => 'Offer',
       PostKind.helpRequest => 'Request',
-      PostKind.thankYou => 'Thank you',
+      PostKind.communityEvent => 'Event',
     };
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -145,10 +148,13 @@ class _PostTile extends StatelessWidget {
               authorName: post.authorName,
               avatarRadius: 16,
               textStyle: Theme.of(context).textTheme.bodySmall,
+              enableProfileTap: false,
             ),
           ],
         ),
-        onTap: () => context.push('/posts/${post.id}'),
+        onTap: () => post.kind == PostKind.communityEvent
+            ? context.push('/event/${post.id}')
+            : context.push('/posts/${post.id}'),
       ),
     );
   }
@@ -182,6 +188,7 @@ class _EventTile extends StatelessWidget {
               prefix: 'Led by ',
               avatarRadius: 16,
               textStyle: Theme.of(context).textTheme.bodySmall,
+              enableProfileTap: false,
             ),
           ],
         ),

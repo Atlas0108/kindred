@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../core/kindred_trace.dart';
 import '../../core/models/community_event.dart';
@@ -57,11 +58,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             return StreamBuilder<List<KindredPost>>(
               stream: context.read<PostService>().homePostsFeed(),
               builder: (context, postSnap) {
-                final eventWaiting =
-                    !eventSnap.hasData && eventSnap.connectionState == ConnectionState.waiting;
                 final postWaiting =
                     !postSnap.hasData && postSnap.connectionState == ConnectionState.waiting;
-                final loading = eventWaiting || postWaiting;
 
                 if (eventSnap.hasError || postSnap.hasError) {
                   kindredTrace(
@@ -85,23 +83,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   );
                 }
 
-                if (loading) {
-                  return ColoredBox(
-                    color: _pageBackground,
-                    child: ListView(
-                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                      children: [
-                        _KindredEventsHero(onMakePost: () => context.go('/post')),
-                        const SizedBox(height: 40),
-                        const Center(child: CircularProgressIndicator()),
-                      ],
-                    ),
-                  );
-                }
-
                 final events = eventSnap.data ?? [];
                 final posts = postSnap.data ?? [];
-                final entries = _buildFeedEntries(context, events, posts);
+                final entries = _buildFeedEntries(context, events, posts, postWaiting: postWaiting);
                 final filtered = _filterEntries(entries, _tabController.index);
                 final rows = filtered.map((e) => e.card).toList();
 
@@ -152,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   }
 }
 
-enum _FeedEntryKind { event, offer, request, thanks }
+enum _FeedEntryKind { event, offer, request, skeleton }
 
 class _FeedEntry {
   _FeedEntry({required this.at, required this.card, required this.kind});
@@ -165,8 +149,9 @@ class _FeedEntry {
 List<_FeedEntry> _buildFeedEntries(
   BuildContext context,
   List<CommunityEvent> events,
-  List<KindredPost> posts,
-) {
+  List<KindredPost> posts, {
+  required bool postWaiting,
+}) {
   final entries = <_FeedEntry>[];
   for (var i = 0; i < events.length; i++) {
     entries.add(
@@ -179,11 +164,20 @@ List<_FeedEntry> _buildFeedEntries(
   }
   for (var i = 0; i < posts.length; i++) {
     final p = posts[i];
-    final kind = switch (p.kind) {
-      PostKind.helpOffer => _FeedEntryKind.offer,
-      PostKind.helpRequest => _FeedEntryKind.request,
-      PostKind.thankYou => _FeedEntryKind.thanks,
-    };
+    if (p.kind == PostKind.communityEvent) {
+      final e = CommunityEvent.fromKindredPost(p);
+      if (e != null) {
+        entries.add(
+          _FeedEntry(
+            at: p.createdAt,
+            card: _EventFeedCard(event: e, listIndex: i),
+            kind: _FeedEntryKind.event,
+          ),
+        );
+      }
+      continue;
+    }
+    final kind = p.kind == PostKind.helpOffer ? _FeedEntryKind.offer : _FeedEntryKind.request;
     entries.add(
       _FeedEntry(
         at: p.createdAt,
@@ -192,11 +186,23 @@ List<_FeedEntry> _buildFeedEntries(
       ),
     );
   }
+  if (postWaiting) {
+    final anchor = DateTime.now();
+    for (var i = 0; i < 2; i++) {
+      entries.add(
+        _FeedEntry(
+          at: anchor.add(Duration(microseconds: i)),
+          card: const _PostFeedCardSkeleton(),
+          kind: _FeedEntryKind.skeleton,
+        ),
+      );
+    }
+  }
   entries.sort((a, b) => b.at.compareTo(a.at));
   return entries;
 }
 
-/// 0 All (includes thank-you posts), 1 Events, 2 Offers, 3 Requests
+/// 0 All, 1 Events, 2 Offers, 3 Requests
 List<_FeedEntry> _filterEntries(List<_FeedEntry> entries, int tabIndex) {
   return switch (tabIndex) {
     0 => entries,
@@ -334,7 +340,7 @@ class _KindredEventsHero extends StatelessWidget {
         Text('Kindred', style: titleStyle),
         const SizedBox(height: 16),
         Text(
-          'Gatherings designed to nourish the soul, tend the earth, and strengthen our collective roots.',
+          'A platform designed to nourish the soul, tend to our communities, and strengthen our collective roots.',
           style: Theme.of(
             context,
           ).textTheme.bodyLarge?.copyWith(color: _descriptionColor, height: 1.55, fontSize: 16),
@@ -474,8 +480,11 @@ class _EventFeedCard extends StatelessWidget {
           const SizedBox(height: 20),
           PostAuthorTapRow(
             authorId: event.organizerId,
-            authorName: event.organizerName.trim().isNotEmpty ? event.organizerName.trim() : 'Organizer',
+            authorName: event.organizerName.trim().isNotEmpty
+                ? event.organizerName.trim()
+                : 'Organizer',
             prefix: 'Led by ',
+            enableProfileTap: false,
           ),
         ],
       ),
@@ -578,8 +587,89 @@ class _EventFeedCard extends StatelessWidget {
             authorId: event.organizerId,
             authorName: host,
             prefix: 'Led by ',
+            enableProfileTap: false,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PostFeedCardSkeleton extends StatelessWidget {
+  const _PostFeedCardSkeleton();
+
+  static const _bone = Color(0xFFE4E2DD);
+
+  @override
+  Widget build(BuildContext context) {
+    Widget boneLine(double height, {double? width}) {
+      return Container(
+        height: height,
+        width: width,
+        decoration: BoxDecoration(color: _bone, borderRadius: BorderRadius.circular(6)),
+      );
+    }
+
+    return IgnorePointer(
+      child: _EditorialCard(
+        onTap: () {},
+        child: Shimmer.fromColors(
+          baseColor: _bone,
+          highlightColor: Colors.white,
+          period: const Duration(milliseconds: 1200),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: _bone,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: _bone,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              boneLine(10, width: 96),
+              const SizedBox(height: 14),
+              boneLine(22),
+              const SizedBox(height: 10),
+              boneLine(14),
+              const SizedBox(height: 8),
+              boneLine(14),
+              const SizedBox(height: 8),
+              boneLine(14, width: 200),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(color: _bone, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: boneLine(14)),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -613,7 +703,7 @@ class _PostFeedCard extends StatelessWidget {
     return switch (post.kind) {
       PostKind.helpOffer => 'OFFERING HELP',
       PostKind.helpRequest => 'REQUEST',
-      PostKind.thankYou => 'THANK YOU',
+      PostKind.communityEvent => 'EVENT',
     };
   }
 
@@ -642,6 +732,14 @@ class _PostFeedCard extends StatelessWidget {
 
   bool get _hasImage => post.imageUrl != null && post.imageUrl!.trim().isNotEmpty;
 
+  void _openDetail(BuildContext context) {
+    if (post.kind == PostKind.communityEvent) {
+      context.push('/event/${post.id}');
+    } else {
+      context.push('/posts/${post.id}');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_hasImage) {
@@ -652,7 +750,7 @@ class _PostFeedCard extends StatelessWidget {
     final day = DateFormat('d').format(created);
 
     return _EditorialCard(
-      onTap: () => context.push('/posts/${post.id}'),
+      onTap: () => _openDetail(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -709,7 +807,11 @@ class _PostFeedCard extends StatelessWidget {
             ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.45),
           ),
           const SizedBox(height: 20),
-          PostAuthorTapRow(authorId: post.authorId, authorName: post.authorName),
+          PostAuthorTapRow(
+            authorId: post.authorId,
+            authorName: post.authorName,
+            enableProfileTap: false,
+          ),
         ],
       ),
     );
@@ -720,7 +822,7 @@ class _PostFeedCard extends StatelessWidget {
     final timeText = DateFormat.jm().format(post.createdAt.toLocal());
 
     return _EditorialCard(
-      onTap: () => context.push('/posts/${post.id}'),
+      onTap: () => _openDetail(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -823,7 +925,11 @@ class _PostFeedCard extends StatelessWidget {
             ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.5, fontSize: 15),
           ),
           const SizedBox(height: 20),
-          PostAuthorTapRow(authorId: post.authorId, authorName: post.authorName),
+          PostAuthorTapRow(
+            authorId: post.authorId,
+            authorName: post.authorName,
+            enableProfileTap: false,
+          ),
         ],
       ),
     );

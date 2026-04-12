@@ -39,6 +39,27 @@ class PostService {
         );
   }
 
+  /// Current user’s posts, newest first (sorted client-side so no composite index is required).
+  ///
+  /// Tied to [FirebaseAuth.authStateChanges] so we resubscribe after auth restores; using
+  /// [FirebaseAuth.currentUser] only once would yield [Stream.empty] and never update.
+  Stream<List<KindredPost>> myPostsFeed({int limit = 50}) {
+    return _auth.authStateChanges().asyncExpand((user) {
+      if (user == null) {
+        return Stream<List<KindredPost>>.value([]);
+      }
+      return _posts
+          .where('authorId', isEqualTo: user.uid)
+          .limit(limit)
+          .snapshots()
+          .map((snap) {
+            final list = snap.docs.map(KindredPost.fromDoc).whereType<KindredPost>().toList();
+            list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            return list;
+          });
+    });
+  }
+
   Stream<List<KindredPost>> postsInRadius({
     required GeoPoint center,
     required double radiusMiles,
@@ -204,51 +225,96 @@ class PostService {
     return id;
   }
 
-  Future<void> markFulfilledWithThankYou({
-    required KindredPost request,
-    String? helperUserId,
-    bool createThankYouPost = true,
+  Future<void> updatePost({
+    required KindredPost post,
+    required PostKind kind,
+    required String title,
+    String? body,
+    required List<String> tags,
+    required GeoPoint geoPoint,
+    bool userRemovedCover = false,
+    Uint8List? newCoverBytes,
+    Object? newCoverWebBlob,
+    String? newCoverContentType,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
-    if (request.authorId != user.uid) {
-      throw StateError('Only the author can mark this fulfilled');
-    }
-    if (request.kind != PostKind.helpRequest) {
-      throw StateError('Not a help request');
-    }
-    if (request.status == PostStatus.fulfilled) {
-      return;
+    if (post.authorId != user.uid) {
+      throw StateError('Only the author can edit this post');
     }
 
-    final batch = _firestore.batch();
-    final postRef = _posts.doc(request.id);
-    batch.update(postRef, {
-      'status': 'fulfilled',
-      if (helperUserId != null) 'fulfilledByUserId': helperUserId,
-    });
+    final hasNewCover =
+        newCoverWebBlob != null || (newCoverBytes != null && newCoverBytes.isNotEmpty);
 
-    if (createThankYouPost) {
-      final thankId = _uuid.v4();
-      final thankRef = _posts.doc(thankId);
-      final thankAuthor = await _authorDisplayName(user);
-      final thank = KindredPost(
-        id: thankId,
-        authorId: user.uid,
-        authorName: thankAuthor,
-        kind: PostKind.thankYou,
-        tags: const ['thank you'],
-        title: 'Thank you for helping with: ${request.title}',
-        body: null,
-        geoPoint: request.geoPoint,
-        geohash: request.geohash,
-        status: PostStatus.open,
-        linkedRequestId: request.id,
-        createdAt: DateTime.now(),
+    final data = <String, dynamic>{
+      'kind': postKindToFirestore(kind),
+      'title': title.trim(),
+      'tags': tags,
+      'geoPoint': geoPoint,
+      'geohash': encodeGeohash(geoPoint.latitude, geoPoint.longitude),
+    };
+
+    final bodyTrim = body?.trim();
+    if (bodyTrim != null && bodyTrim.isNotEmpty) {
+      data['body'] = bodyTrim;
+    } else {
+      data['body'] = FieldValue.delete();
+    }
+
+    if (hasNewCover) {
+      await _tryDeletePostCoverInStorage(post, user.uid);
+      final mime = (newCoverContentType != null && newCoverContentType.trim().isNotEmpty)
+          ? newCoverContentType.trim()
+          : 'image/jpeg';
+      final url = await _uploadPostCoverImage(
+        postId: post.id,
+        bytes: newCoverWebBlob != null ? null : newCoverBytes,
+        webImageBlob: newCoverWebBlob,
+        contentType: mime,
       );
-      batch.set(thankRef, thank.toCreateMap());
+      data['imageUrl'] = url;
+    } else if (userRemovedCover) {
+      await _tryDeletePostCoverInStorage(post, user.uid);
+      data['imageUrl'] = FieldValue.delete();
     }
 
-    await batch.commit();
+    await _posts.doc(post.id).update(data).timeout(_writeAckWait);
+  }
+
+  /// Removes the post document and, when possible, its cover image in Storage.
+  Future<void> deletePost(KindredPost post) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+    if (post.authorId != user.uid) {
+      throw StateError('Only the author can delete this post');
+    }
+
+    await _tryDeletePostCoverInStorage(post, user.uid);
+    await _posts.doc(post.id).delete().timeout(_writeAckWait);
+  }
+
+  Future<void> _tryDeletePostCoverInStorage(KindredPost post, String uid) async {
+    final url = post.imageUrl?.trim();
+    if (url == null || url.isEmpty) return;
+    try {
+      await _storage.refFromURL(url).delete();
+      return;
+    } on FirebaseException catch (e) {
+      if (e.code != 'object-not-found') {
+        kindredTrace('PostService.deletePost storage refFromURL', '${e.code} ${e.message}');
+      }
+    } catch (e) {
+      kindredTrace('PostService.deletePost storage refFromURL', e);
+    }
+    for (final ext in ['jpg', 'png']) {
+      try {
+        await _storage.ref('post_images/$uid/${post.id}.$ext').delete();
+        return;
+      } on FirebaseException catch (e) {
+        if (e.code != 'object-not-found') {
+          kindredTrace('PostService.deletePost storage path', '${e.code} ${e.message}');
+        }
+      }
+    }
   }
 }

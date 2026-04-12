@@ -1,7 +1,8 @@
 enum PostKind {
   helpOffer,
   helpRequest,
-  thankYou,
+  /// Community gathering; stored in the `posts` collection with event fields.
+  communityEvent,
 }
 
 String postKindToFirestore(PostKind k) {
@@ -10,8 +11,8 @@ String postKindToFirestore(PostKind k) {
       return 'help_offer';
     case PostKind.helpRequest:
       return 'help_request';
-    case PostKind.thankYou:
-      return 'thank_you';
+    case PostKind.communityEvent:
+      return 'community_event';
   }
 }
 
@@ -21,8 +22,8 @@ PostKind? postKindFromFirestore(String? v) {
       return PostKind.helpOffer;
     case 'help_request':
       return PostKind.helpRequest;
-    case 'thank_you':
-      return PostKind.thankYou;
+    case 'community_event':
+      return PostKind.communityEvent;
     default:
       return null;
   }

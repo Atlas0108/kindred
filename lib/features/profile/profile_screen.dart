@@ -354,6 +354,28 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
+              if (profile.bio != null && profile.bio!.trim().isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Bio',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: _slateSubtitle,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SelectableText(
+                  profile.bio!.trim(),
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    height: 1.5,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               ...List.generate(tags.length.clamp(0, 3), (i) {
                 final t = tags[i];
@@ -665,6 +687,7 @@ class _ProfileEditSheet extends StatefulWidget {
 
 class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   late final TextEditingController _name;
+  late final TextEditingController _bio;
   late final TextEditingController _neighborhood;
   late final TextEditingController _photoUrl;
 
@@ -673,6 +696,7 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
     super.initState();
     final p = widget.profile;
     _name = TextEditingController(text: p.displayName);
+    _bio = TextEditingController(text: p.bio ?? '');
     _neighborhood = TextEditingController(text: p.neighborhoodLabel ?? '');
     _photoUrl = TextEditingController(text: p.photoUrl ?? '');
   }
@@ -680,6 +704,7 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
   @override
   void dispose() {
     _name.dispose();
+    _bio.dispose();
     _neighborhood.dispose();
     _photoUrl.dispose();
     super.dispose();
@@ -692,6 +717,7 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
       await svc.updatePublicProfile(
         displayName: _name.text,
         photoUrl: _photoUrl.text.trim().isEmpty ? null : _photoUrl.text,
+        bio: _bio.text.trim().isEmpty ? null : _bio.text,
         neighborhoodLabel: _neighborhood.text.trim().isEmpty ? null : _neighborhood.text,
         profileTags: p.profileTags,
         eventsAttended: p.eventsAttended,
@@ -743,6 +769,19 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
               controller: _name,
               decoration: const InputDecoration(labelText: 'Display name'),
               textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _bio,
+              decoration: const InputDecoration(
+                labelText: 'Bio',
+                hintText: 'A few words about you…',
+                alignLabelWithHint: true,
+              ),
+              maxLines: 5,
+              minLines: 3,
+              maxLength: UserProfileService.maxBioLength,
+              textCapitalization: TextCapitalization.sentences,
             ),
             const SizedBox(height: 12),
             TextField(

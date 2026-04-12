@@ -1,5 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'post.dart';
+import 'post_kind.dart';
+
 class CommunityEvent {
   const CommunityEvent({
     required this.id,
@@ -33,6 +36,40 @@ class CommunityEvent {
   final GeoPoint geoPoint;
   final String geohash;
   final DateTime createdAt;
+
+  /// Event posts use [KindredPost] in the `posts` collection with [PostKind.communityEvent].
+  /// Resolves either a legacy `events` document or a `posts` doc with [PostKind.communityEvent].
+  static CommunityEvent? fromFirestoreDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    if (!doc.exists) return null;
+    final data = doc.data();
+    if (data == null) return null;
+    if (data['kind'] == 'community_event') {
+      final p = KindredPost.fromDoc(doc);
+      return p == null ? null : CommunityEvent.fromKindredPost(p);
+    }
+    if (data.containsKey('kind')) return null;
+    return CommunityEvent.fromDoc(doc);
+  }
+
+  static CommunityEvent? fromKindredPost(KindredPost p) {
+    if (p.kind != PostKind.communityEvent) return null;
+    final start = p.startsAt ?? p.createdAt;
+    return CommunityEvent(
+      id: p.id,
+      organizerId: p.authorId,
+      title: p.title,
+      description: p.body?.trim() ?? '',
+      imageUrl: p.imageUrl,
+      startsAt: start,
+      endsAt: p.endsAt,
+      organizerName: p.authorName,
+      tags: p.tags,
+      locationDescription: p.locationDescription ?? '',
+      geoPoint: p.geoPoint,
+      geohash: p.geohash,
+      createdAt: p.createdAt,
+    );
+  }
 
   static CommunityEvent? fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data();

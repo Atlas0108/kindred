@@ -246,10 +246,13 @@ class UserProfileService {
     invalidateProfileCache();
   }
 
+  static const int maxBioLength = 500;
+
   /// Updates the signed-in user’s public profile fields (merge). Empty strings clear optional fields.
   Future<void> updatePublicProfile({
     required String displayName,
     required String? photoUrl,
+    required String? bio,
     required String? neighborhoodLabel,
     required List<String> profileTags,
     required int eventsAttended,
@@ -289,6 +292,13 @@ class UserProfileService {
       data['neighborhoodLabel'] = FieldValue.delete();
     } else {
       data['neighborhoodLabel'] = nb;
+    }
+
+    final bioTrim = bio?.trim();
+    if (bioTrim == null || bioTrim.isEmpty) {
+      data['bio'] = FieldValue.delete();
+    } else {
+      data['bio'] = bioTrim.length > maxBioLength ? bioTrim.substring(0, maxBioLength) : bioTrim;
     }
 
     final en = eventsProgressNote?.trim();

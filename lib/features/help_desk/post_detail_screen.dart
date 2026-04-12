@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
 import '../../core/services/post_service.dart';
+import '../../widgets/message_poster_button.dart';
 import '../../widgets/post_author_row.dart';
 
 class PostDetailScreen extends StatelessWidget {
@@ -38,6 +39,9 @@ class PostDetailScreen extends StatelessWidget {
           if (post == null) {
             return const Center(child: Text('Invalid post'));
           }
+          if (post.kind == PostKind.communityEvent) {
+            return _RedirectCommunityEventToDetail(postId: post.id);
+          }
           return _PostBody(post: post);
         },
       ),
@@ -55,28 +59,38 @@ class _PostBody extends StatefulWidget {
 }
 
 class _PostBodyState extends State<_PostBody> {
-  bool _busy = false;
-  String? _helperId;
+  bool _deleting = false;
 
-  Future<void> _markKindred() async {
-    setState(() => _busy = true);
+  Future<void> _confirmAndDeletePost() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete post?'),
+        content: const Text("This can't be undone."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(ctx).colorScheme.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _deleting = true);
     try {
-      await context.read<PostService>().markFulfilledWithThankYou(
-            request: widget.post,
-            helperUserId: _helperId,
-            createThankYouPost: true,
-          );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Marked Kindred — thank you post added.')),
-        );
-      }
+      await context.read<PostService>().deletePost(widget.post);
+      if (mounted) context.pop();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _deleting = false);
     }
   }
 
@@ -88,12 +102,12 @@ class _PostBodyState extends State<_PostBody> {
     final kindLabel = switch (post.kind) {
       PostKind.helpOffer => 'Offer of help',
       PostKind.helpRequest => 'Request for help',
-      PostKind.thankYou => 'Thank you',
+      PostKind.communityEvent => 'Event',
     };
     final color = switch (post.kind) {
       PostKind.helpOffer => Colors.green,
       PostKind.helpRequest => Colors.blue,
-      PostKind.thankYou => Colors.amber.shade800,
+      PostKind.communityEvent => Colors.deepOrange,
     };
 
     final hasImage = post.imageUrl != null && post.imageUrl!.trim().isNotEmpty;
@@ -161,14 +175,23 @@ class _PostBodyState extends State<_PostBody> {
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
-          PostAuthorTapRow(
-            authorId: post.authorId,
-            authorName: post.authorName,
-            avatarRadius: 20,
-            textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 14,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: PostAuthorTapRow(
+                  authorId: post.authorId,
+                  authorName: post.authorName,
+                  avatarRadius: 20,
+                  textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 14,
+                      ),
                 ),
+              ),
+              const SizedBox(width: 10),
+              MessagePosterButton(authorId: post.authorId, authorName: post.authorName),
+            ],
           ),
           if (post.body != null && post.body!.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -181,36 +204,58 @@ class _PostBodyState extends State<_PostBody> {
               children: post.tags.map((t) => Chip(label: Text(t))).toList(),
             ),
           ],
-          if (isAuthor &&
-              post.kind == PostKind.helpRequest &&
-              post.status == PostStatus.open) ...[
-            const SizedBox(height: 24),
-            Text(
-              'Optional: helper user ID (stored on the request for future karma).',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Helper user ID',
-                hintText: 'Paste Firebase Auth UID',
-              ),
-              onChanged: (v) => _helperId = v.trim().isEmpty ? null : v.trim(),
+          if (isAuthor) ...[
+            const SizedBox(height: 32),
+            OutlinedButton(
+              onPressed: () => context.push('/posts/${post.id}/edit'),
+              child: const Text('Edit Post'),
             ),
             const SizedBox(height: 12),
-            FilledButton(
-              onPressed: _busy ? null : _markKindred,
-              child: _busy
-                  ? const SizedBox(
+            OutlinedButton(
+              onPressed: _deleting ? null : _confirmAndDeletePost,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+                side: BorderSide(color: Theme.of(context).colorScheme.error),
+              ),
+              child: _deleting
+                  ? SizedBox(
                       height: 22,
                       width: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     )
-                  : const Text('Kindred’d'),
+                  : const Text('Delete Post'),
             ),
           ],
         ],
       ),
     );
+  }
+}
+
+class _RedirectCommunityEventToDetail extends StatefulWidget {
+  const _RedirectCommunityEventToDetail({required this.postId});
+
+  final String postId;
+
+  @override
+  State<_RedirectCommunityEventToDetail> createState() => _RedirectCommunityEventToDetailState();
+}
+
+class _RedirectCommunityEventToDetailState extends State<_RedirectCommunityEventToDetail> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.go('/event/${widget.postId}');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(child: CircularProgressIndicator());
   }
 }

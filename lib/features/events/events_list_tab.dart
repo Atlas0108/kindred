@@ -8,9 +8,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/community_event.dart';
+import '../../core/models/post.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/services/event_service.dart';
+import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
+import '../../core/utils/merge_community_events.dart';
 import '../../core/constants/default_geo.dart';
 
 class EventsListTab extends StatefulWidget {
@@ -21,13 +24,16 @@ class EventsListTab extends StatefulWidget {
 }
 
 class _EventsListTabState extends State<EventsListTab> {
-  List<CommunityEvent> _events = [];
-  StreamSubscription<List<CommunityEvent>>? _sub;
+  List<CommunityEvent> _legacyEvents = [];
+  List<KindredPost> _postsInRadius = [];
+  StreamSubscription<List<CommunityEvent>>? _eventSub;
+  StreamSubscription<List<KindredPost>>? _postSub;
   String? _key;
 
   @override
   void dispose() {
-    _sub?.cancel();
+    _eventSub?.cancel();
+    _postSub?.cancel();
     super.dispose();
   }
 
@@ -36,12 +42,18 @@ class _EventsListTabState extends State<EventsListTab> {
         '${center.latitude}_${center.longitude}_$radiusMiles';
     if (k == _key) return;
     _key = k;
-    _sub?.cancel();
-    _sub = context.read<EventService>().eventsInRadius(
-          center: center,
-          radiusMiles: radiusMiles.toDouble(),
-        ).listen((e) {
-      if (mounted) setState(() => _events = e);
+    _eventSub?.cancel();
+    _postSub?.cancel();
+    final radius = radiusMiles.toDouble();
+    final eventSvc = context.read<EventService>();
+    final postSvc = context.read<PostService>();
+    _eventSub = eventSvc.eventsInRadius(center: center, radiusMiles: radius).listen((e) {
+      if (!mounted) return;
+      setState(() => _legacyEvents = e);
+    });
+    _postSub = postSvc.postsInRadius(center: center, radiusMiles: radius).listen((p) {
+      if (!mounted) return;
+      setState(() => _postsInRadius = p);
     });
   }
 
@@ -63,6 +75,8 @@ class _EventsListTabState extends State<EventsListTab> {
         final radiusMiles = profile?.discoveryRadiusMiles ?? 25;
         _attach(center, radiusMiles);
 
+        final events = mergeLegacyAndPostEventRows(_legacyEvents, _postsInRadius);
+
         return Scaffold(
           appBar: AppBar(
             title: const Text('Events'),
@@ -74,7 +88,7 @@ class _EventsListTabState extends State<EventsListTab> {
               ),
             ],
           ),
-          body: _events.isEmpty
+          body: events.isEmpty
               ? Center(
                   child: Text(
                     'No upcoming events in your radius.\nCreate one with +',
@@ -84,9 +98,9 @@ class _EventsListTabState extends State<EventsListTab> {
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _events.length,
+                  itemCount: events.length,
                   itemBuilder: (context, i) {
-                    final e = _events[i];
+                    final e = events[i];
                     return Card(
                       margin: const EdgeInsets.only(bottom: 12),
                       child: ListTile(

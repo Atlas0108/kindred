@@ -18,6 +18,7 @@ class PostAuthorTapRow extends StatelessWidget {
     this.avatarRadius = 18,
     this.iconColor,
     this.placeholderBackgroundColor,
+    this.enableProfileTap = true,
   });
 
   final String authorId;
@@ -27,6 +28,9 @@ class PostAuthorTapRow extends StatelessWidget {
   final double avatarRadius;
   final Color? iconColor;
   final Color? placeholderBackgroundColor;
+
+  /// When false, the row is display-only (e.g. post cards on the home feed).
+  final bool enableProfileTap;
 
   static String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
@@ -107,7 +111,7 @@ class PostAuthorTapRow extends StatelessWidget {
     final svc = context.read<UserProfileService>();
     final myUid = FirebaseAuth.instance.currentUser?.uid;
     final isSelf = myUid != null && authorId == myUid;
-    final tappable = authorId.isNotEmpty && !isSelf;
+    final tappable = enableProfileTap && authorId.isNotEmpty && !isSelf;
 
     final defaultStyle = Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: const Color(0xFF6B7280),

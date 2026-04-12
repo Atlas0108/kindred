@@ -5,6 +5,7 @@ class UserProfile {
     required this.uid,
     required this.displayName,
     this.photoUrl,
+    this.bio,
     this.homeGeoPoint,
     this.discoveryRadiusMiles = 25,
     this.karma = 0,
@@ -20,6 +21,8 @@ class UserProfile {
   final String uid;
   final String displayName;
   final String? photoUrl;
+  /// Short about text; shown on profile.
+  final String? bio;
   final GeoPoint? homeGeoPoint;
   final int discoveryRadiusMiles;
   final int karma;
@@ -42,12 +45,14 @@ class UserProfile {
         if (t is String && t.trim().isNotEmpty) tags.add(t.trim());
       }
     }
+    final rawBio = (data['bio'] as String?)?.trim();
     return UserProfile(
       uid: uid,
       displayName: (data['displayName'] as String?)?.trim().isNotEmpty == true
           ? data['displayName'] as String
           : 'Neighbor',
       photoUrl: data['photoUrl'] as String?,
+      bio: rawBio != null && rawBio.isNotEmpty ? rawBio : null,
       homeGeoPoint: home is GeoPoint ? home : null,
       discoveryRadiusMiles: (data['discoveryRadiusMiles'] as num?)?.toInt().clamp(10, 100) ?? 25,
       karma: (data['karma'] as num?)?.toInt() ?? 0,
@@ -65,6 +70,7 @@ class UserProfile {
     return {
       'displayName': displayName,
       if (photoUrl != null && photoUrl!.trim().isNotEmpty) 'photoUrl': photoUrl!.trim(),
+      if (bio != null && bio!.trim().isNotEmpty) 'bio': bio!.trim(),
       if (homeGeoPoint != null) 'homeGeoPoint': homeGeoPoint,
       'discoveryRadiusMiles': discoveryRadiusMiles.clamp(10, 100),
       'karma': karma,

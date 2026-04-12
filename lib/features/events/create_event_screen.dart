@@ -14,12 +14,16 @@ import '../../app/kindred_scaffold_messenger.dart';
 import '../../core/constants/default_geo.dart';
 import '../../core/constants/event_tag_presets.dart';
 import '../../core/kindred_trace.dart';
+import '../../core/models/community_event.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/blob_from_object_url.dart';
 
 class CreateEventScreen extends StatefulWidget {
-  const CreateEventScreen({super.key});
+  const CreateEventScreen({super.key, this.editingEventId});
+
+  /// When set (from `/event/:id/edit`), loads that event for editing (organizer only).
+  final String? editingEventId;
 
   @override
   State<CreateEventScreen> createState() => _CreateEventScreenState();
@@ -40,6 +44,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   Uint8List? _pickedImageBytes;
   String? _pickedImageMime;
 
+  CommunityEvent? _editingEvent;
+  bool _loadingEdit = false;
+  bool _removeExistingCover = false;
+  String? _existingCoverUrl;
+
+  bool get _isEditMode => widget.editingEventId != null;
+
   @override
   void initState() {
     super.initState();
@@ -47,16 +58,70 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _startsAt = DateTime(base.year, base.month, base.day, base.hour.clamp(0, 23), 0);
     _endsAt = _startsAt.add(const Duration(hours: 1));
     _discoveryGeo = kDefaultGeoPoint;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      kindredTrace('CreateEventScreen postFrameCallback');
+    if (_isEditMode) {
+      _loadingEdit = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadEventForEdit());
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        kindredTrace('CreateEventScreen postFrameCallback');
+        if (!mounted) return;
+        final u = FirebaseAuth.instance.currentUser;
+        if (u == null) {
+          kindredTrace('CreateEventScreen postFrameCallback no user');
+          return;
+        }
+        unawaited(_applyProfileDefaults(u.uid));
+      });
+    }
+  }
+
+  Future<void> _loadEventForEdit() async {
+    final id = widget.editingEventId;
+    if (id == null || !mounted) return;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) context.pop();
+      return;
+    }
+    try {
+      final e = await context.read<EventService>().fetchEvent(id);
       if (!mounted) return;
-      final u = FirebaseAuth.instance.currentUser;
-      if (u == null) {
-        kindredTrace('CreateEventScreen postFrameCallback no user');
+      if (e == null || e.organizerId != user.uid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You can only edit your own events.')),
+        );
+        context.pop();
         return;
       }
-      unawaited(_applyProfileDefaults(u.uid));
-    });
+      final end = e.endsAt ?? e.startsAt.add(const Duration(hours: 1));
+      final url = e.imageUrl?.trim();
+      setState(() {
+        _editingEvent = e;
+        _title.text = e.title;
+        _organizer.text = e.organizerName;
+        _description.text = e.description;
+        _locationText.text = e.locationDescription;
+        _startsAt = e.startsAt.toLocal();
+        _endsAt = end.toLocal();
+        _tags
+          ..clear()
+          ..addAll(e.tags);
+        _discoveryGeo = e.geoPoint;
+        _existingCoverUrl = url != null && url.isNotEmpty ? url : null;
+        _removeExistingCover = false;
+        _loadingEdit = false;
+      });
+    } catch (e, st) {
+      kindredTrace('CreateEventScreen._loadEventForEdit', e);
+      assert(() {
+        kindredTrace('CreateEventScreen._loadEventForEdit stack', st);
+        return true;
+      }());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+        context.pop();
+      }
+    }
   }
 
   /// Best-effort: never block the form on Firestore (offline / slow get() otherwise spins forever).
@@ -98,10 +163,13 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   }
 
   Future<void> _pickStartsAt() async {
+    final firstDate = _isEditMode
+        ? DateTime.now().subtract(const Duration(days: 365 * 10))
+        : DateTime.now();
     final d = await showDatePicker(
       context: context,
-      initialDate: _startsAt,
-      firstDate: DateTime.now(),
+      initialDate: _startsAt.isBefore(firstDate) ? firstDate : _startsAt,
+      firstDate: firstDate,
       lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
     );
     if (d == null || !mounted) return;
@@ -132,6 +200,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         _pickedXFile = x;
         _pickedImageBytes = null;
         _pickedImageMime = x.mimeType;
+        _removeExistingCover = false;
+        _existingCoverUrl = null;
       });
     } else {
       final bytes = await x.readAsBytes();
@@ -140,6 +210,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         _pickedXFile = null;
         _pickedImageBytes = bytes;
         _pickedImageMime = x.mimeType;
+        _removeExistingCover = false;
+        _existingCoverUrl = null;
       });
     }
   }
@@ -149,11 +221,18 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       _pickedXFile = null;
       _pickedImageBytes = null;
       _pickedImageMime = null;
+      if (_editingEvent != null && _existingCoverUrl != null) {
+        _removeExistingCover = true;
+        _existingCoverUrl = null;
+      }
     });
   }
 
   bool get _hasPickedImage =>
       _pickedImageBytes != null || (kIsWeb && _pickedXFile != null);
+
+  bool get _showingCover =>
+      _hasPickedImage || (_existingCoverUrl != null && !_removeExistingCover);
 
   Future<void> _pickEndsAt() async {
     final d = await showDatePicker(
@@ -231,32 +310,61 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         }
       }
       if (!mounted) return;
-      await context.read<EventService>().createEvent(
-            title: title,
-            description: description,
-            organizerName: organizer,
-            tags: tags,
-            startsAt: _startsAt,
-            endsAt: _endsAt,
-            locationDescription: loc,
-            geoPoint: geo,
-            imageBytes: imageBytes,
-            imageContentType: _pickedImageMime,
-            webImageBlob: webBlob,
+      final editing = _editingEvent;
+      if (editing != null) {
+        kindredTrace('CreateEventScreen._save calling EventService.updateEvent');
+        await context.read<EventService>().updateEvent(
+              event: editing,
+              title: title,
+              description: description,
+              organizerName: organizer,
+              tags: tags,
+              startsAt: _startsAt,
+              endsAt: _endsAt,
+              locationDescription: loc,
+              geoPoint: geo,
+              userRemovedCover: _removeExistingCover && !_hasPickedImage,
+              newCoverBytes: imageBytes,
+              newCoverWebBlob: webBlob,
+              newCoverContentType: _pickedImageMime,
+            );
+        kindredTrace('CreateEventScreen._save updateEvent returned');
+        if (!mounted) return;
+        if (!context.mounted) return;
+        context.pop();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          kindredScaffoldMessengerKey.currentState?.showSnackBar(
+            const SnackBar(content: Text('Event updated')),
           );
-      kindredTrace('CreateEventScreen._save createEvent returned');
-      if (!mounted) {
-        kindredTrace('CreateEventScreen._save not mounted after create');
-        return;
+        });
+      } else {
+        await context.read<EventService>().createEvent(
+              title: title,
+              description: description,
+              organizerName: organizer,
+              tags: tags,
+              startsAt: _startsAt,
+              endsAt: _endsAt,
+              locationDescription: loc,
+              geoPoint: geo,
+              imageBytes: imageBytes,
+              imageContentType: _pickedImageMime,
+              webImageBlob: webBlob,
+            );
+        kindredTrace('CreateEventScreen._save createEvent returned');
+        if (!mounted) {
+          kindredTrace('CreateEventScreen._save not mounted after create');
+          return;
+        }
+        if (!context.mounted) return;
+        kindredTrace('CreateEventScreen._save context.go(/home)');
+        context.go('/home');
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          kindredScaffoldMessengerKey.currentState?.showSnackBar(
+            const SnackBar(content: Text('Event published')),
+          );
+        });
       }
-      if (!context.mounted) return;
-      kindredTrace('CreateEventScreen._save context.go(/home)');
-      context.go('/home');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        kindredScaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(content: Text('Event published')),
-        );
-      });
     } catch (e, st) {
       kindredTrace('CreateEventScreen._save catch', e);
       assert(() {
@@ -279,13 +387,15 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New event'),
+        title: Text(_isEditMode ? 'Edit event' : 'New event'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => context.pop(),
         ),
       ),
-      body: SingleChildScrollView(
+      body: _loadingEdit
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -329,19 +439,28 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                   const SizedBox(height: 20),
                   Text('Cover photo (optional)', style: theme.textTheme.titleSmall),
                   const SizedBox(height: 8),
-                  if (_hasPickedImage) ...[
+                  if (_showingCover) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
                       child: AspectRatio(
                         aspectRatio: 4 / 3,
-                        child: kIsWeb && _pickedXFile != null
-                            ? Image.network(
-                                _pickedXFile!.path,
+                        child: _hasPickedImage
+                            ? (kIsWeb && _pickedXFile != null
+                                ? Image.network(
+                                    _pickedXFile!.path,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Image.memory(
+                                    _pickedImageBytes!,
+                                    fit: BoxFit.cover,
+                                  ))
+                            : Image.network(
+                                _existingCoverUrl!,
                                 fit: BoxFit.cover,
-                              )
-                            : Image.memory(
-                                _pickedImageBytes!,
-                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => ColoredBox(
+                                  color: Colors.grey.shade300,
+                                  child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600),
+                                ),
                               ),
                       ),
                     ),
@@ -355,7 +474,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                     OutlinedButton.icon(
                       onPressed: _pickImage,
                       icon: const Icon(Icons.add_photo_alternate_outlined),
-                      label: const Text('Add cover photo'),
+                      label: Text(_isEditMode ? 'Change cover photo' : 'Add cover photo'),
                     ),
                   const SizedBox(height: 20),
                   Text('Category / tags', style: theme.textTheme.titleSmall),
@@ -434,7 +553,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
                             width: 22,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Publish event'),
+                        : Text(_isEditMode ? 'Save changes' : 'Publish event'),
                   ),
                 ],
               ),

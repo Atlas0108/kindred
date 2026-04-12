@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Seeds Kindred with 3 demo users (Firebase Auth + `users` docs), 3 events, and 3 help-offer posts.
+ * Seeds Kindred with 3 demo users (Firebase Auth + `users` docs), 3 community-event posts, and 3 help-offer posts.
+ * Events use the same `posts` collection as offers/requests with kind `community_event` (see lib/core/models/post.dart).
  *
  *   export GOOGLE_APPLICATION_CREDENTIALS="$HOME/Downloads/your-project-firebase-adminsdk-xxxxx.json"
  *   optional: export DEMO_SEED_PASSWORD="YourSharedPassword123!"
@@ -8,7 +9,7 @@
  *   node seed_demo.mjs              # dry-run
  *   node seed_demo.mjs --execute    # write data
  *
- * Re-running with --execute creates additional events/posts (new IDs). Auth users are reused if the
+ * Re-running with --execute creates additional posts (new IDs). Auth users are reused if the
  * emails already exist. Optional: FIREBASE_STORAGE_BUCKET (default ${projectId}.firebasestorage.app).
  */
 
@@ -187,7 +188,7 @@ async function seedUserDoc(uid, u) {
   await db.collection('users').doc(uid).set(data, { merge: true });
 }
 
-async function seedEvent(template, usersByIndex) {
+async function seedCommunityEventPost(template, usersByIndex) {
   const org = usersByIndex[template.organizerIndex];
   const id = randomUUID();
   if (!execute) return id;
@@ -197,20 +198,23 @@ async function seedEvent(template, usersByIndex) {
   starts.setHours(10, 0, 0, 0);
   const ends = new Date(starts.getTime() + template.durationHours * 60 * 60 * 1000);
   const gp = new GeoPoint(org.lat, org.lng);
+  /** Matches KindredPost.toCreateMap() for PostKind.communityEvent (lib/core/models/post.dart). */
   const data = {
-    organizerId: org.uid,
-    title: template.title,
-    description: template.description,
-    startsAt: Timestamp.fromDate(starts),
-    endsAt: Timestamp.fromDate(ends),
-    organizerName: org.displayName,
+    authorId: org.uid,
+    authorName: org.displayName,
+    kind: 'community_event',
     tags: template.tags,
-    locationDescription: template.locationDescription,
+    title: template.title,
+    body: template.description,
     geoPoint: gp,
     geohash: geohash5(org.lat, org.lng),
+    status: 'open',
     createdAt: Timestamp.now(),
+    startsAt: Timestamp.fromDate(starts),
+    endsAt: Timestamp.fromDate(ends),
+    locationDescription: template.locationDescription,
   };
-  await db.collection('events').doc(id).set(data);
+  await db.collection('posts').doc(id).set(data);
   return id;
 }
 
@@ -276,8 +280,8 @@ async function main() {
 
   console.log('');
   for (const ev of demoEvents) {
-    const id = await seedEvent(ev, usersByIndex);
-    console.log(`Event: "${ev.title}" → ${execute ? id : '(would create)'}`);
+    const id = await seedCommunityEventPost(ev, usersByIndex);
+    console.log(`Event post: "${ev.title}" → ${execute ? id : '(would create)'}`);
   }
 
   console.log('');

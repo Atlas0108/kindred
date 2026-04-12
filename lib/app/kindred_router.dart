@@ -123,6 +123,14 @@ GoRouter createKindredRouter() {
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
+        path: '/posts/:id/edit',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return ComposePostScreen(editingPostId: id);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
         path: '/posts/:id',
         builder: (context, state) {
           final id = state.pathParameters['id']!;
@@ -155,6 +163,14 @@ GoRouter createKindredRouter() {
         parentNavigatorKey: rootNavigatorKey,
         path: '/event/new',
         redirect: (context, state) => '/post/new/event',
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/event/:id/edit',
+        builder: (context, state) {
+          final id = state.pathParameters['id']!;
+          return CreateEventScreen(editingEventId: id);
+        },
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

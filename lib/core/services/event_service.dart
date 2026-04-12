@@ -9,6 +9,8 @@ import 'package:uuid/uuid.dart';
 import '../kindred_trace.dart';
 import '../geo/geo_utils.dart';
 import '../models/community_event.dart';
+import '../models/post.dart';
+import '../models/post_kind.dart';
 import '../models/rsvp.dart';
 import '../utils/cover_image_prepare.dart';
 
@@ -30,6 +32,42 @@ class EventService {
   CollectionReference<Map<String, dynamic>> get _events =>
       _firestore.collection('events');
 
+  CollectionReference<Map<String, dynamic>> get _posts =>
+      _firestore.collection('posts');
+
+  /// Whether this id refers to a community-event post in `posts` vs a legacy `events` doc.
+  Future<DocumentReference<Map<String, dynamic>>> resolveEventDocumentRef(String id) async {
+    final postSnap = await _posts.doc(id).get();
+    if (postSnap.exists && postSnap.data()?['kind'] == 'community_event') {
+      return _posts.doc(id);
+    }
+    return _events.doc(id);
+  }
+
+  /// Listens to the correct backing document (post-backed event or legacy `events` doc).
+  Stream<DocumentSnapshot<Map<String, dynamic>>> watchEventDocument(String eventId) async* {
+    final postRef = _posts.doc(eventId);
+    final postSnap = await postRef.get();
+    if (postSnap.exists && postSnap.data()?['kind'] == 'community_event') {
+      yield* postRef.snapshots();
+      return;
+    }
+    yield* _events.doc(eventId).snapshots();
+  }
+
+  /// For edit screens: load from `posts` (event kind) or legacy `events`.
+  Future<CommunityEvent?> fetchEvent(String id) async {
+    final postSnap = await _posts.doc(id).get();
+    if (postSnap.exists && postSnap.data()?['kind'] == 'community_event') {
+      final p = KindredPost.fromDoc(postSnap);
+      return p == null ? null : CommunityEvent.fromKindredPost(p);
+    }
+    final leg = await _events.doc(id).get();
+    return CommunityEvent.fromDoc(leg);
+  }
+
+  /// Legacy `events` documents only. Merge with [PostService.postsInRadius] and
+  /// [mergeLegacyAndPostEventRows] to include [PostKind.communityEvent] posts.
   Stream<List<CommunityEvent>> eventsInRadius({
     required GeoPoint center,
     required double radiusMiles,
@@ -52,7 +90,7 @@ class EventService {
     });
   }
 
-  /// Newest events first (for Home). Requires [CommunityEvent.createdAt] on documents.
+  /// Newest first from the legacy `events` collection only (older data). New events are [PostKind.communityEvent] in `posts` — see [PostService.homePostsFeed].
   Stream<List<CommunityEvent>> homeEventsFeed({int limit = 50}) {
     return _events
         .orderBy('createdAt', descending: true)
@@ -64,6 +102,25 @@ class EventService {
               .whereType<CommunityEvent>()
               .toList(),
         );
+  }
+
+  /// Events you organize, newest [CommunityEvent.createdAt] first (no composite index;
+  /// sorted client-side like [PostService.myPostsFeed]).
+  Stream<List<CommunityEvent>> myOrganizedEventsFeed({int limit = 50}) {
+    return _auth.authStateChanges().asyncExpand((user) {
+      if (user == null) {
+        return Stream<List<CommunityEvent>>.value([]);
+      }
+      return _events
+          .where('organizerId', isEqualTo: user.uid)
+          .limit(limit)
+          .snapshots()
+          .map((snap) {
+            final list = snap.docs.map(CommunityEvent.fromDoc).whereType<CommunityEvent>().toList();
+            list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            return list;
+          });
+    });
   }
 
   Future<String> _awaitUploadTask(UploadTask task, Reference ref, String logLabel) async {
@@ -172,24 +229,26 @@ class EventService {
         contentType: mime,
       );
     }
-    final event = CommunityEvent(
+    final post = KindredPost(
       id: id,
-      organizerId: user.uid,
-      title: title,
-      description: description,
-      imageUrl: imageUrl,
-      startsAt: startsAt,
-      endsAt: endsAt,
-      organizerName: organizerName,
+      authorId: user.uid,
+      authorName: organizerName.trim().isNotEmpty ? organizerName.trim() : 'Neighbor',
+      kind: PostKind.communityEvent,
       tags: tags,
-      locationDescription: locationDescription,
+      title: title,
+      body: description,
+      imageUrl: imageUrl,
       geoPoint: geoPoint,
       geohash: encodeGeohash(geoPoint.latitude, geoPoint.longitude),
+      status: PostStatus.open,
       createdAt: DateTime.now(),
+      startsAt: startsAt,
+      endsAt: endsAt,
+      locationDescription: locationDescription.trim().isNotEmpty ? locationDescription.trim() : null,
     );
-    kindredTrace('EventService.createEvent before events/$id .set()');
+    kindredTrace('EventService.createEvent before posts/$id .set()');
     try {
-      await _events.doc(id).set(event.toCreateMap()).timeout(_writeAckWait);
+      await _posts.doc(id).set(post.toCreateMap()).timeout(_writeAckWait);
       kindredTrace('EventService.createEvent after .set() OK');
     } on TimeoutException {
       kindredTrace(
@@ -205,26 +264,148 @@ class EventService {
     if (user == null) {
       return const Stream.empty();
     }
-    return _events.doc(eventId).collection('rsvps').doc(user.uid).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return EventRsvp.fromDoc(doc);
+    final uid = user.uid;
+    return Stream.fromFuture(resolveEventDocumentRef(eventId)).asyncExpand((root) {
+      return root.collection('rsvps').doc(uid).snapshots().map((doc) {
+        if (!doc.exists) return null;
+        return EventRsvp.fromDoc(doc);
+      });
     });
   }
 
   Stream<List<EventRsvp>> rsvpsStream(String eventId) {
-    return _events.doc(eventId).collection('rsvps').snapshots().map((snap) {
-      return snap.docs.map(EventRsvp.fromDoc).whereType<EventRsvp>().toList();
+    return Stream.fromFuture(resolveEventDocumentRef(eventId)).asyncExpand((root) {
+      return root.collection('rsvps').snapshots().map((snap) {
+        return snap.docs.map(EventRsvp.fromDoc).whereType<EventRsvp>().toList();
+      });
     });
   }
 
   Future<void> setMyRsvp(String eventId, RsvpStatus status) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
+    final root = await resolveEventDocumentRef(eventId);
     final rsvp = EventRsvp(userId: user.uid, status: status, updatedAt: DateTime.now());
-    await _events
-        .doc(eventId)
-        .collection('rsvps')
-        .doc(user.uid)
-        .set(rsvp.toWriteMap());
+    await root.collection('rsvps').doc(user.uid).set(rsvp.toWriteMap());
+  }
+
+  Future<void> updateEvent({
+    required CommunityEvent event,
+    required String title,
+    required String description,
+    required String organizerName,
+    required List<String> tags,
+    required DateTime startsAt,
+    required DateTime endsAt,
+    required String locationDescription,
+    required GeoPoint geoPoint,
+    bool userRemovedCover = false,
+    Uint8List? newCoverBytes,
+    Object? newCoverWebBlob,
+    String? newCoverContentType,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+    if (event.organizerId != user.uid) {
+      throw StateError('Only the organizer can edit this event');
+    }
+    if (!endsAt.isAfter(startsAt)) {
+      throw ArgumentError.value(endsAt, 'endsAt', 'must be after startsAt');
+    }
+
+    final hasNewCover =
+        newCoverWebBlob != null || (newCoverBytes != null && newCoverBytes.isNotEmpty);
+
+    final ref = await resolveEventDocumentRef(event.id);
+    final isPostBacked = ref.path.startsWith('posts/');
+
+    final data = <String, dynamic>{
+      'title': title.trim(),
+      'tags': tags,
+      'startsAt': Timestamp.fromDate(startsAt),
+      'endsAt': Timestamp.fromDate(endsAt),
+      'locationDescription': locationDescription.trim(),
+      'geoPoint': geoPoint,
+      'geohash': encodeGeohash(geoPoint.latitude, geoPoint.longitude),
+    };
+
+    if (isPostBacked) {
+      data['body'] = description.trim();
+      data['authorName'] = organizerName.trim();
+    } else {
+      data['description'] = description.trim();
+      data['organizerName'] = organizerName.trim();
+    }
+
+    if (hasNewCover) {
+      await _tryDeleteEventCoverInStorage(event, user.uid);
+      final mime = (newCoverContentType != null && newCoverContentType.trim().isNotEmpty)
+          ? newCoverContentType.trim()
+          : 'image/jpeg';
+      final url = await _uploadEventCoverImage(
+        eventId: event.id,
+        bytes: newCoverWebBlob != null ? null : newCoverBytes,
+        webImageBlob: newCoverWebBlob,
+        contentType: mime,
+      );
+      data['imageUrl'] = url;
+    } else if (userRemovedCover) {
+      await _tryDeleteEventCoverInStorage(event, user.uid);
+      data['imageUrl'] = FieldValue.delete();
+    }
+
+    await ref.update(data).timeout(_writeAckWait);
+  }
+
+  /// Deletes the event, its RSVP subdocuments, and the cover image in Storage when possible.
+  Future<void> deleteEvent(CommunityEvent event) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+    if (event.organizerId != user.uid) {
+      throw StateError('Only the organizer can delete this event');
+    }
+
+    await _tryDeleteEventCoverInStorage(event, user.uid);
+
+    final eventRef = await resolveEventDocumentRef(event.id);
+    final rsvpSnap = await eventRef.collection('rsvps').get();
+    WriteBatch batch = _firestore.batch();
+    var n = 0;
+    for (final d in rsvpSnap.docs) {
+      batch.delete(d.reference);
+      n++;
+      if (n >= 450) {
+        await batch.commit();
+        batch = _firestore.batch();
+        n = 0;
+      }
+    }
+    batch.delete(eventRef);
+    await batch.commit().timeout(_writeAckWait);
+  }
+
+  Future<void> _tryDeleteEventCoverInStorage(CommunityEvent event, String uid) async {
+    final url = event.imageUrl?.trim();
+    if (url == null || url.isEmpty) return;
+    try {
+      await _storage.refFromURL(url).delete();
+      return;
+    } on FirebaseException catch (e) {
+      if (e.code != 'object-not-found') {
+        kindredTrace('EventService.deleteEvent storage refFromURL', '${e.code} ${e.message}');
+      }
+    } catch (e) {
+      kindredTrace('EventService.deleteEvent storage refFromURL', e);
+    }
+    for (final ext in ['jpg', 'png']) {
+      try {
+        await _storage.ref('event_images/$uid/${event.id}.$ext').delete();
+        return;
+      } on FirebaseException catch (e) {
+        if (e.code != 'object-not-found') {
+          kindredTrace('EventService.deleteEvent storage path', '${e.code} ${e.message}');
+        }
+      }
+    }
   }
 }

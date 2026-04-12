@@ -1,0 +1,253 @@
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/kindred_trace.dart';
+import '../../core/services/user_profile_service.dart';
+
+String _formatAuthError(FirebaseAuthException e) {
+  final code = e.code;
+  final msg = (e.message ?? '').trim();
+  final hint = switch (code) {
+    'operation-not-allowed' =>
+      'Enable Email/Password: Firebase Console → Authentication → Sign-in method.',
+    'invalid-credential' || 'wrong-password' || 'user-not-found' =>
+      'Check email and password, or register a new account.',
+    'invalid-email' => 'That email address looks invalid.',
+    'email-already-in-use' => 'An account already exists for this email — try Sign in.',
+    'weak-password' => 'Password is too weak (use at least 6 characters).',
+    'too-many-requests' => 'Too many attempts. Wait a bit and try again.',
+    'network-request-failed' => 'Network error — check your connection.',
+    'configuration-not-found' =>
+      'Auth isn’t fully enabled for this Firebase project, or the Web API key is wrong.\n'
+      '• Firebase Console → Build → Authentication → open it once (Get started).\n'
+      '• Sign-in method → enable Email/Password.\n'
+      '• Google Cloud Console → APIs & Library → enable “Identity Toolkit API”.\n'
+      '• Cloud Console → APIs & Services → Credentials → your **browser** API key '
+      '(same as firebase_options.dart): under API restrictions, allow Identity Toolkit API '
+      '(or use “Don’t restrict” for a prototype). If the key is restricted to Maps only, '
+      'sign-in will fail.',
+    _ => null,
+  };
+  final core = msg.isNotEmpty ? '$code: $msg' : code;
+  if (hint != null) {
+    return '$core\n$hint';
+  }
+  return core;
+}
+
+class SignInScreen extends StatefulWidget {
+  const SignInScreen({super.key});
+
+  @override
+  State<SignInScreen> createState() => _SignInScreenState();
+}
+
+class _SignInScreenState extends State<SignInScreen> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  final _displayName = TextEditingController();
+  bool _register = false;
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyDevPrefills();
+  }
+
+  void _applyDevPrefills() {
+    if (!dotenv.isInitialized) return;
+    final email = dotenv.maybeGet('KINDRED_DEV_EMAIL')?.trim();
+    final password = dotenv.maybeGet('KINDRED_DEV_PASSWORD')?.trim();
+    if (email != null && email.isNotEmpty) {
+      _email.text = email;
+    }
+    if (password != null && password.isNotEmpty) {
+      _password.text = password;
+    }
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    _displayName.dispose();
+    super.dispose();
+  }
+
+  String _resolveDisplayName(User u) {
+    for (final s in [u.displayName?.trim(), u.email?.trim(), _displayName.text.trim()]) {
+      if (s != null && s.isNotEmpty) return s;
+    }
+    return 'Neighbor';
+  }
+
+  Future<void> _ensureProfileInBackground(
+    UserProfileService svc,
+    String displayName,
+  ) async {
+    kindredTrace('SignIn._ensureProfileInBackground start', displayName);
+    try {
+      await svc.ensureProfile(displayName: displayName);
+      kindredTrace('SignIn._ensureProfileInBackground done OK');
+    } catch (e, st) {
+      kindredTrace('SignIn._ensureProfileInBackground catch (ignored)', e);
+      assert(() {
+        kindredTrace('SignIn._ensureProfileInBackground stack', st);
+        return true;
+      }());
+    }
+  }
+
+  Future<void> _submit() async {
+    kindredTrace('SignIn._submit start', 'register=$_register');
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final userProfileService = context.read<UserProfileService>();
+    var didRequestNavigation = false;
+    try {
+      final auth = FirebaseAuth.instance;
+      if (_register) {
+        kindredTrace('SignIn._submit createUserWithEmailAndPassword...');
+        final cred = await auth.createUserWithEmailAndPassword(
+          email: _email.text.trim(),
+          password: _password.text,
+        );
+        kindredTrace('SignIn._submit createUser OK');
+        if (!mounted) return;
+        final name = _displayName.text.trim();
+        if (name.isNotEmpty) {
+          kindredTrace('SignIn._submit updateDisplayName...');
+          await cred.user?.updateDisplayName(name);
+          kindredTrace('SignIn._submit updateDisplayName OK');
+        }
+        if (!mounted) return;
+      } else {
+        kindredTrace('SignIn._submit signInWithEmailAndPassword...');
+        await auth.signInWithEmailAndPassword(
+          email: _email.text.trim(),
+          password: _password.text,
+        );
+        kindredTrace('SignIn._submit signIn OK');
+        if (!mounted) return;
+      }
+
+      final u = auth.currentUser;
+      if (u == null) {
+        kindredTrace('SignIn._submit no currentUser');
+        setState(() => _error = 'Signed in but no user — try again.');
+        return;
+      }
+
+      kindredTrace('SignIn._submit currentUser', u.uid);
+      didRequestNavigation = true;
+      kindredTrace('SignIn._submit context.go(/home)');
+      if (mounted) context.go('/home');
+      final displayName = _resolveDisplayName(u);
+      kindredTrace('SignIn._submit fire ensureProfile background');
+      unawaited(_ensureProfileInBackground(userProfileService, displayName));
+    } on FirebaseAuthException catch (e) {
+      kindredTrace('SignIn._submit FirebaseAuthException', e.code);
+      setState(() => _error = _formatAuthError(e));
+    } catch (e, st) {
+      kindredTrace('SignIn._submit catch', e);
+      assert(() {
+        kindredTrace('SignIn._submit stack', st);
+        return true;
+      }());
+      setState(() => _error = '$e');
+    } finally {
+      kindredTrace('SignIn._submit finally', 'didRequestNavigation=$didRequestNavigation');
+      if (mounted && !didRequestNavigation) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: AutofillGroup(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('Kindred', style: Theme.of(context).textTheme.headlineMedium),
+                  const SizedBox(height: 8),
+                  Text(
+                    _register ? 'Create an account' : 'Sign in',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 24),
+                  if (_register) ...[
+                    TextField(
+                      controller: _displayName,
+                      decoration: const InputDecoration(labelText: 'Display name'),
+                      textInputAction: TextInputAction.next,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                  TextField(
+                    controller: _email,
+                    decoration: const InputDecoration(labelText: 'Email'),
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    textInputAction: TextInputAction.next,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _password,
+                    decoration: const InputDecoration(labelText: 'Password'),
+                    obscureText: true,
+                    autofillHints: const [AutofillHints.password],
+                    onSubmitted: (_) => _busy ? null : _submit(),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    SelectableText(
+                      _error!,
+                      style: TextStyle(color: Theme.of(context).colorScheme.error, height: 1.35),
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: _busy ? null : _submit,
+                    child: _busy
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(_register ? 'Register' : 'Sign in'),
+                  ),
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => setState(() {
+                              _register = !_register;
+                              _error = null;
+                            }),
+                    child: Text(_register ? 'Have an account? Sign in' : 'Need an account? Register'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

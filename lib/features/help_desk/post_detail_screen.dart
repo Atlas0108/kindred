@@ -11,6 +11,7 @@ import '../../core/models/post_kind.dart';
 import '../../core/services/post_service.dart';
 import '../../widgets/message_poster_button.dart';
 import '../../widgets/post_author_row.dart';
+import '../../widgets/post_kind_icon_badge.dart';
 
 class PostDetailScreen extends StatelessWidget {
   const PostDetailScreen({super.key, required this.postId});
@@ -99,17 +100,6 @@ class _PostBodyState extends State<_PostBody> {
     final post = widget.post;
     final user = FirebaseAuth.instance.currentUser;
     final isAuthor = user?.uid == post.authorId;
-    final kindLabel = switch (post.kind) {
-      PostKind.helpOffer => 'Offer of help',
-      PostKind.helpRequest => 'Request for help',
-      PostKind.communityEvent => 'Event',
-    };
-    final color = switch (post.kind) {
-      PostKind.helpOffer => Colors.green,
-      PostKind.helpRequest => Colors.blue,
-      PostKind.communityEvent => Colors.deepOrange,
-    };
-
     final hasImage = post.imageUrl != null && post.imageUrl!.trim().isNotEmpty;
     final imageUrl = hasImage ? post.imageUrl!.trim() : '';
 
@@ -143,10 +133,19 @@ class _PostBodyState extends State<_PostBody> {
             const SizedBox(height: 20),
           ],
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Icon(Icons.circle, color: color, size: 14),
-              const SizedBox(width: 8),
-              Text(kindLabel, style: Theme.of(context).textTheme.labelLarge),
+              PostKindIconBadge(kind: post.kind),
+              const SizedBox(width: 12),
+              Text(
+                postKindListHeadline(post.kind),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: const Color(0xFF6B7B8C),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.1,
+                      fontSize: 11,
+                    ),
+              ),
               if (post.status == PostStatus.fulfilled) ...[
                 const SizedBox(width: 12),
                 Chip(

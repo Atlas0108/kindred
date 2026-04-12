@@ -18,6 +18,7 @@ import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
 import 'feed_browse_location_sheet.dart';
 import '../../widgets/post_author_row.dart';
+import '../../widgets/post_kind_icon_badge.dart';
 import '../../widgets/post_save_button.dart';
 
 Widget _feedCardWithSave(String contentId, Widget editorialCard) {
@@ -217,7 +218,7 @@ List<_FeedEntry> _buildFeedEntries(
     entries.add(
       _FeedEntry(
         at: events[i].createdAt,
-        card: _EventFeedCard(event: events[i], listIndex: i),
+        card: _EventFeedCard(event: events[i]),
         kind: _FeedEntryKind.event,
       ),
     );
@@ -230,7 +231,7 @@ List<_FeedEntry> _buildFeedEntries(
         entries.add(
           _FeedEntry(
             at: p.createdAt,
-            card: _EventFeedCard(event: e, listIndex: i),
+            card: _EventFeedCard(event: e),
             kind: _FeedEntryKind.event,
           ),
         );
@@ -241,7 +242,7 @@ List<_FeedEntry> _buildFeedEntries(
     entries.add(
       _FeedEntry(
         at: p.createdAt,
-        card: _PostFeedCard(post: p, listIndex: i),
+        card: _PostFeedCard(post: p),
         kind: kind,
       ),
     );
@@ -500,10 +501,9 @@ class _KindredEventsHero extends StatelessWidget {
 }
 
 class _EventFeedCard extends StatelessWidget {
-  const _EventFeedCard({required this.event, required this.listIndex});
+  const _EventFeedCard({required this.event});
 
   final CommunityEvent event;
-  final int listIndex;
 
   static const _categoryColor = Color(0xFF6B7B8C);
   static const _forestCategory = Color(0xFF4A6354);
@@ -511,25 +511,11 @@ class _EventFeedCard extends StatelessWidget {
   static const _bodyColor = Color(0xFF5C6268);
   static const _metaGrey = Color(0xFF5C6268);
 
-  static const _badgeBackgrounds = [
-    Color(0xFFDFF2E8),
-    Color(0xFFF2EBDD),
-    Color(0xFFE3EDFA),
-    Color(0xFFFFE8E0),
-  ];
+  /// Soft peach-cream (former random palette option) for the date tile only.
+  static const _eventDateBadgeBg = Color(0xFFFFE8E0);
 
-  Color _badgeColor() {
-    final h = event.id.hashCode ^ listIndex * 17;
-    return _badgeBackgrounds[h.abs() % _badgeBackgrounds.length];
-  }
-
-  String _categoryLabel() {
-    if (event.tags.isEmpty) return 'EVENT';
-    final t = event.tags.first.trim();
-    if (t.isEmpty) return 'EVENT';
-    final upper = t.toUpperCase();
-    return upper.length > 28 ? '${upper.substring(0, 28)}…' : upper;
-  }
+  /// Same pattern as [_PostFeedCard._kindHeadline]: fixed kind above the title.
+  String get _kindHeadline => 'EVENT';
 
   String _descriptionPreview() {
     final d = event.description.trim().replaceAll(RegExp(r'\s+'), ' ');
@@ -561,7 +547,7 @@ class _EventFeedCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _DateBadge(month: month, day: day, backgroundColor: _badgeColor()),
+                _DateBadge(month: month, day: day, backgroundColor: _eventDateBadgeBg),
                 const Padding(
                   padding: EdgeInsets.only(top: 6),
                   child: Icon(Icons.arrow_forward, size: 22, color: _arrowColor),
@@ -570,7 +556,7 @@ class _EventFeedCard extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              _categoryLabel(),
+              _kindHeadline,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: _categoryColor,
                 fontWeight: FontWeight.w600,
@@ -660,7 +646,7 @@ class _EventFeedCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    _categoryLabel(),
+                    _kindHeadline,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: _forestCategory,
                       fontWeight: FontWeight.w700,
@@ -800,48 +786,14 @@ class _PostFeedCardSkeleton extends StatelessWidget {
 }
 
 class _PostFeedCard extends StatelessWidget {
-  const _PostFeedCard({required this.post, required this.listIndex});
+  const _PostFeedCard({required this.post});
 
   final KindredPost post;
-  final int listIndex;
 
   static const _categoryColor = Color(0xFF6B7B8C);
   static const _forestCategory = Color(0xFF4A6354);
   static const _arrowColor = Color(0xFF8E9499);
   static const _bodyColor = Color(0xFF5C6268);
-  static const _metaGrey = Color(0xFF5C6268);
-
-  static const _badgeBackgrounds = [
-    Color(0xFFE8F4E0),
-    Color(0xFFE5EEF8),
-    Color(0xFFFFF3E0),
-    Color(0xFFF3E8FF),
-  ];
-
-  Color _badgeColor() {
-    final h = post.id.hashCode ^ listIndex * 19;
-    return _badgeBackgrounds[h.abs() % _badgeBackgrounds.length];
-  }
-
-  String _categoryLabel() {
-    return switch (post.kind) {
-      PostKind.helpOffer => 'OFFERING HELP',
-      PostKind.helpRequest => 'REQUEST',
-      PostKind.communityEvent => 'EVENT',
-    };
-  }
-
-  /// Primary line under the hero image: first tag (caps) or kind label.
-  String _heroCategoryLine() {
-    if (post.tags.isNotEmpty) {
-      final t = post.tags.first.trim();
-      if (t.isNotEmpty) {
-        final u = t.toUpperCase();
-        return u.length > 28 ? '${u.substring(0, 28)}…' : u;
-      }
-    }
-    return _categoryLabel();
-  }
 
   String _descriptionPreview() {
     final b = post.body?.trim();
@@ -869,9 +821,6 @@ class _PostFeedCard extends StatelessWidget {
     if (_hasImage) {
       return _buildImageHeroCard(context);
     }
-    final created = post.createdAt.toLocal();
-    final month = DateFormat('MMM').format(created).toUpperCase();
-    final day = DateFormat('d').format(created);
 
     return _feedCardWithSave(
       post.id,
@@ -884,7 +833,7 @@ class _PostFeedCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _DateBadge(month: month, day: day, backgroundColor: _badgeColor()),
+                PostKindIconBadge(kind: post.kind),
                 const Padding(
                   padding: EdgeInsets.only(top: 6),
                   child: Icon(Icons.arrow_forward, size: 22, color: _arrowColor),
@@ -893,7 +842,7 @@ class _PostFeedCard extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              _categoryLabel(),
+              postKindListHeadline(post.kind),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: _categoryColor,
                 fontWeight: FontWeight.w600,
@@ -946,7 +895,6 @@ class _PostFeedCard extends StatelessWidget {
 
   Widget _buildImageHeroCard(BuildContext context) {
     final url = post.imageUrl!.trim();
-    final timeText = DateFormat.jm().format(post.createdAt.toLocal());
 
     return _feedCardWithSave(
       post.id,
@@ -994,7 +942,7 @@ class _PostFeedCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _heroCategoryLine(),
+                        postKindListHeadline(post.kind),
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: _forestCategory,
                           fontWeight: FontWeight.w700,
@@ -1017,21 +965,7 @@ class _PostFeedCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.schedule, size: 16, color: _metaGrey.withValues(alpha: 0.9)),
-                    const SizedBox(width: 4),
-                    Text(
-                      timeText,
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: _metaGrey,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
+                PostKindIconBadge(kind: post.kind, compact: true),
               ],
             ),
             const SizedBox(height: 12),

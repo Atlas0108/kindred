@@ -471,6 +471,12 @@ class _EventFeedCard extends StatelessWidget {
               context,
             ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.45),
           ),
+          const SizedBox(height: 20),
+          PostAuthorTapRow(
+            authorId: event.organizerId,
+            authorName: event.organizerName.trim().isNotEmpty ? event.organizerName.trim() : 'Organizer',
+            prefix: 'Led by ',
+          ),
         ],
       ),
     );
@@ -568,25 +574,10 @@ class _EventFeedCard extends StatelessWidget {
             ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.5, fontSize: 15),
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.grey.shade300,
-                child: Icon(Icons.person_outline, color: Colors.grey.shade600, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Led by $host',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _authorGrey,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
+          PostAuthorTapRow(
+            authorId: event.organizerId,
+            authorName: host,
+            prefix: 'Led by ',
           ),
         ],
       ),

@@ -12,6 +12,7 @@ import '../../core/services/event_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/event_formatting.dart';
 import '../../core/utils/link_utils.dart';
+import '../../widgets/post_author_row.dart';
 
 class EventDetailScreen extends StatelessWidget {
   const EventDetailScreen({super.key, required this.eventId});
@@ -103,7 +104,14 @@ class _EventBody extends StatelessWidget {
                 : Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 8),
-          if (event.organizerName.isNotEmpty) ...[
+          if (event.organizerId.isNotEmpty) ...[
+            PostAuthorTapRow(
+              authorId: event.organizerId,
+              authorName: event.organizerName.trim().isNotEmpty ? event.organizerName.trim() : 'Organizer',
+              prefix: 'Led by ',
+            ),
+            const SizedBox(height: 8),
+          ] else if (event.organizerName.isNotEmpty) ...[
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

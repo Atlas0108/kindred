@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,7 +10,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/models/user_profile.dart';
+import '../../core/services/messaging_service.dart';
 import '../../core/services/user_profile_service.dart';
+import '../inbox/chat_screen.dart';
 import '../../core/utils/blob_from_object_url.dart';
 
 /// Matches the Kindred home cream canvas.
@@ -26,11 +29,26 @@ const _statBlue = Color(0xFF3D5A80);
 const _gearBg = Color(0xFFECECEA);
 const _gearIcon = Color(0xFF5C5C5C);
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.userId});
 
   /// When null, shows the signed-in user (e.g. Profile tab). When set, shows that member (e.g. from `/u/:userId`).
   final String? userId;
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _selfEnsureRequested = false;
+
+  @override
+  void didUpdateWidget(ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) {
+      _selfEnsureRequested = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,9 +59,9 @@ class ProfileScreen extends StatelessWidget {
       );
     }
 
-    final targetUid = userId ?? user.uid;
+    final targetUid = widget.userId ?? user.uid;
     final svc = context.read<UserProfileService>();
-    final fromShell = userId == null;
+    final fromShell = widget.userId == null;
 
     Widget body = ColoredBox(
       color: _pageBackground,
@@ -56,13 +74,48 @@ class ProfileScreen extends StatelessWidget {
             }
             final p = snap.data;
             if (p == null) {
+              final viewingSelf = targetUid == user.uid;
+              if (viewingSelf) {
+                final email = user.email?.trim();
+                if (email == null || email.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        'Add an email address to your account to show your profile.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: _slateSubtitle),
+                      ),
+                    ),
+                  );
+                }
+                if (!_selfEnsureRequested) {
+                  _selfEnsureRequested = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    unawaited(
+                      svc.ensureProfile(
+                        displayName: UserProfileService.preferredDisplayNameFromAuthUser(user),
+                      ),
+                    );
+                  });
+                }
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('Loading your profile…'),
+                    ],
+                  ),
+                );
+              }
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
-                    fromShell
-                        ? 'Your profile is still loading. Pull to reopen the app if this persists.'
-                        : 'This neighbor’s profile is not available yet.',
+                    'This neighbor’s profile is not available yet.',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: _slateSubtitle),
                   ),
@@ -167,10 +220,23 @@ class _ProfileBodyState extends State<_ProfileBody> {
     }
   }
 
-  void _messagePlaceholder(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Messaging will connect neighbors in a future update.')),
+  void _openChat(BuildContext context) {
+    final me = FirebaseAuth.instance.currentUser;
+    if (me == null) return;
+    final id = MessagingService.conversationIdForPair(me.uid, profile.uid);
+    context.push(
+      '/chat/$id',
+      extra: ChatScreenRouteExtra(
+        otherUserId: profile.uid,
+        otherDisplayName: profile.displayName,
+      ),
     );
+  }
+
+  Future<void> _signOut(BuildContext context) async {
+    await FirebaseAuth.instance.signOut();
+    if (!context.mounted) return;
+    context.go('/sign-in');
   }
 
   @override
@@ -319,14 +385,14 @@ class _ProfileBodyState extends State<_ProfileBody> {
                     child: FilledButton(
                       onPressed: widget.viewingSelf
                           ? () => context.go('/inbox')
-                          : () => _messagePlaceholder(context),
+                          : () => _openChat(context),
                       style: FilledButton.styleFrom(
                         backgroundColor: _headerGreen,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      child: Text(widget.viewingSelf ? 'Inbox' : 'Message'),
+                      child: widget.viewingSelf ? const Text('Inbox') : const Text('Message'),
                     ),
                   ),
                   if (widget.viewingSelf) ...[
@@ -369,6 +435,20 @@ class _ProfileBodyState extends State<_ProfileBody> {
                     ? profile.requestsProgressNote!
                     : 'Silver helper badge',
               ),
+              if (widget.viewingSelf) ...[
+                const SizedBox(height: 24),
+                TextButton.icon(
+                  onPressed: () => _signOut(context),
+                  icon: Icon(Icons.logout, size: 20, color: _slateSubtitle),
+                  label: Text(
+                    'Log out',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: _slateSubtitle,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

@@ -34,6 +34,14 @@ class UserProfileService {
   DocumentReference<Map<String, dynamic>> _userRef(String uid) =>
       _firestore.collection('users').doc(uid);
 
+  /// Display name for new/merged `users/{uid}` docs: Auth profile name, else email, else a neutral label.
+  static String preferredDisplayNameFromAuthUser(User user) {
+    for (final s in [user.displayName?.trim(), user.email?.trim()]) {
+      if (s != null && s.isNotEmpty) return s;
+    }
+    return 'Neighbor';
+  }
+
   Future<String> _awaitUploadTask(UploadTask task, Reference ref) async {
     try {
       await task.timeout(
@@ -174,10 +182,16 @@ class UserProfileService {
   }
 
   /// Creates `users/{uid}` if it does not exist. Called after sign-in; errors are ignored.
+  /// Skips creation when the account has no email (Kindred treats email + display name as the minimum public identity).
   Future<void> ensureProfile({required String displayName}) async {
     final user = _auth.currentUser;
     if (user == null) {
       kindredTrace('UserProfileService.ensureProfile skip (no user)');
+      return;
+    }
+    final email = user.email?.trim();
+    if (email == null || email.isEmpty) {
+      kindredTrace('UserProfileService.ensureProfile skip (no email on account)');
       return;
     }
     kindredTrace('UserProfileService.ensureProfile start', user.uid);

@@ -161,15 +161,30 @@ class _EventTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final host = event.organizerName.trim().isNotEmpty ? event.organizerName.trim() : 'Organizer';
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
+        isThreeLine: true,
         leading: CircleAvatar(
           backgroundColor: Colors.deepOrange.shade100,
           child: Icon(Icons.event, color: Colors.deepOrange.shade800),
         ),
         title: Text(event.title),
-        subtitle: Text(formatEventScheduleLine(event)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(formatEventScheduleLine(event)),
+            const SizedBox(height: 6),
+            PostAuthorTapRow(
+              authorId: event.organizerId,
+              authorName: host,
+              prefix: 'Led by ',
+              avatarRadius: 16,
+              textStyle: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
         onTap: () => context.push('/event/${event.id}'),
       ),
     );

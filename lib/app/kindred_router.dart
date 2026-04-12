@@ -11,6 +11,7 @@ import '../features/events/event_detail_screen.dart';
 import '../features/help_desk/compose_post_screen.dart';
 import '../features/help_desk/post_detail_screen.dart';
 import '../features/home/home_screen.dart';
+import '../features/inbox/chat_screen.dart';
 import '../features/inbox/inbox_screen.dart';
 import '../features/post/post_hub_screen.dart';
 import '../features/profile/profile_screen.dart';
@@ -133,6 +134,15 @@ GoRouter createKindredRouter() {
         builder: (context, state) {
           final uid = state.pathParameters['userId']!;
           return ProfileScreen(userId: uid);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/chat/:conversationId',
+        builder: (context, state) {
+          final id = state.pathParameters['conversationId']!;
+          final extra = state.extra as ChatScreenRouteExtra?;
+          return ChatScreen(conversationId: id, routeExtra: extra);
         },
       ),
       GoRoute(

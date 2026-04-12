@@ -1,40 +1,160 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
-/// Inbox tab (layout placeholder).
+import '../../core/models/direct_conversation.dart';
+import '../../core/services/messaging_service.dart';
+import 'chat_screen.dart';
+
 class InboxScreen extends StatelessWidget {
   const InboxScreen({super.key});
 
+  static String _conversationInitial(String title) {
+    final t = title.trim();
+    if (t.isEmpty) return '?';
+    return t.substring(0, 1).toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid == null) {
+      return const Scaffold(body: Center(child: Text('Sign in to view messages.')));
+    }
+
+    final svc = context.read<MessagingService>();
+    final dateFmt = DateFormat.MMMd();
+    final timeFmt = DateFormat.jm();
+
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Inbox')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.inbox_outlined,
-                size: 64,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'No messages yet',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Threads and notifications will show here.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      body: StreamBuilder<List<DirectConversation>>(
+        stream: svc.myConversationsStream(),
+        builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Couldn’t load conversations',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium,
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${snap.error}',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final list = snap.data ?? [];
+          if (list.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.inbox_outlined,
+                      size: 64,
+                      color: theme.colorScheme.outline,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No conversations yet',
+                      style: theme.textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Open someone’s profile and tap Message to start a chat.',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                child: Text(
+                  'Conversations',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  itemCount: list.length,
+                  separatorBuilder: (_, __) => Divider(height: 1, color: theme.dividerColor),
+                  itemBuilder: (context, i) {
+                    final c = list[i];
+                    final other = c.otherParticipantId(myUid);
+                    final title = c.displayNameForUser(other) ?? 'Neighbor';
+                    final preview =
+                        c.lastMessageText.trim().isEmpty ? 'No messages yet' : c.lastMessageText;
+                    final t = c.updatedAt.toLocal();
+                    final sub = DateTime.now().difference(t).inHours < 24
+                        ? timeFmt.format(t)
+                        : dateFmt.format(t);
+                    final initial = _conversationInitial(title);
+
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                      leading: CircleAvatar(
+                        child: Text(initial),
+                      ),
+                      title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                        preview,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Text(
+                        sub,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      onTap: () => context.push(
+                        '/chat/${c.id}',
+                        extra: ChatScreenRouteExtra(
+                          otherUserId: other,
+                          otherDisplayName: title,
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }

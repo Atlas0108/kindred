@@ -13,6 +13,7 @@ import '../features/help_desk/post_detail_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/inbox/inbox_screen.dart';
 import '../features/post/post_hub_screen.dart';
+import '../features/profile/profile_screen.dart';
 import 'go_router_refresh.dart';
 import 'shell/app_shell.dart';
 
@@ -92,6 +93,14 @@ GoRouter createKindredRouter() {
               ),
             ],
           ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) => const ProfileScreen(),
+              ),
+            ],
+          ),
         ],
       ),
       GoRoute(
@@ -116,6 +125,14 @@ GoRouter createKindredRouter() {
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return PostDetailScreen(postId: id);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/u/:userId',
+        builder: (context, state) {
+          final uid = state.pathParameters['userId']!;
+          return ProfileScreen(userId: uid);
         },
       ),
       GoRoute(

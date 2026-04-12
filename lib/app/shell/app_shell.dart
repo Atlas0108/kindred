@@ -28,6 +28,11 @@ class AppShell extends StatelessWidget {
       selectedIcon: Icon(Icons.inbox),
       label: 'Inbox',
     ),
+    NavigationDestination(
+      icon: Icon(Icons.person_outline),
+      selectedIcon: Icon(Icons.person),
+      label: 'Profile',
+    ),
   ];
 
   @override
@@ -69,6 +74,11 @@ class AppShell extends StatelessWidget {
                   icon: Icon(Icons.inbox_outlined),
                   selectedIcon: Icon(Icons.inbox),
                   label: Text('Inbox'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: Text('Profile'),
                 ),
               ],
             ),

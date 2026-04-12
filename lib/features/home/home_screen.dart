@@ -10,6 +10,7 @@ import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/post_service.dart';
+import '../../widgets/post_author_row.dart';
 
 /// Home: community events and help-desk posts (newest first), with category tabs.
 class HomeScreen extends StatefulWidget {
@@ -604,7 +605,6 @@ class _PostFeedCard extends StatelessWidget {
   static const _arrowColor = Color(0xFF8E9499);
   static const _bodyColor = Color(0xFF5C6268);
   static const _metaGrey = Color(0xFF5C6268);
-  static const _authorGrey = Color(0xFF6B7280);
 
   static const _badgeBackgrounds = [
     Color(0xFFE8F4E0),
@@ -717,6 +717,8 @@ class _PostFeedCard extends StatelessWidget {
               context,
             ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.45),
           ),
+          const SizedBox(height: 20),
+          PostAuthorTapRow(authorId: post.authorId, authorName: post.authorName),
         ],
       ),
     );
@@ -830,26 +832,7 @@ class _PostFeedCard extends StatelessWidget {
             ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.5, fontSize: 15),
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 18,
-                backgroundColor: Colors.grey.shade300,
-                child: Icon(Icons.person_outline, color: Colors.grey.shade600, size: 22),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Shared by ${post.authorName}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: _authorGrey,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          PostAuthorTapRow(authorId: post.authorId, authorName: post.authorName),
         ],
       ),
     );

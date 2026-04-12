@@ -1,0 +1,9 @@
+{
+  "name": "kindred-delete-all-posts",
+  "private": true,
+  "type": "module",
+  "description": "One-off admin: remove all Firestore posts docs and post cover images (not profile_* avatars).",
+  "dependencies": {
+    "firebase-admin": "^13.0.0"
+  }
+}

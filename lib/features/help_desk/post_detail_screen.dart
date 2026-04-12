@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
 import '../../core/services/post_service.dart';
+import '../../widgets/post_author_row.dart';
 
 class PostDetailScreen extends StatelessWidget {
   const PostDetailScreen({super.key, required this.postId});
@@ -159,11 +160,14 @@ class _PostBodyState extends State<_PostBody> {
             DateFormat.yMMMd().add_jm().format(post.createdAt),
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          const SizedBox(height: 4),
-          Text(
-            'Shared by ${post.authorName}',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          const SizedBox(height: 8),
+          PostAuthorTapRow(
+            authorId: post.authorId,
+            authorName: post.authorName,
+            avatarRadius: 20,
+            textStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 14,
                 ),
           ),
           if (post.body != null && post.body!.isNotEmpty) ...[

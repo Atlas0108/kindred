@@ -1,6 +1,9 @@
 # Local secrets (use `.env.example` as a template)
 .env
 
+# Node (admin scripts)
+**/node_modules/
+
 # Miscellaneous
 *.class
 *.log

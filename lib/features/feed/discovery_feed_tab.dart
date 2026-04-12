@@ -16,6 +16,7 @@ import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/event_formatting.dart';
 import '../../core/constants/default_geo.dart';
+import '../../widgets/post_author_row.dart';
 
 class _FeedRow {
   _FeedRow.post(KindredPost p) : post = p, event = null, sortTime = p.createdAt;
@@ -130,10 +131,22 @@ class _PostTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
+        isThreeLine: true,
         leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.2), child: Text(label[0])),
         title: Text(post.title),
-        subtitle: Text(
-          '${DateFormat.yMMMd().add_jm().format(post.createdAt)} · ${post.tags.take(3).join(', ')}',
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${DateFormat.yMMMd().add_jm().format(post.createdAt)} · ${post.tags.take(3).join(', ')}',
+            ),
+            PostAuthorTapRow(
+              authorId: post.authorId,
+              authorName: post.authorName,
+              avatarRadius: 16,
+              textStyle: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ),
         onTap: () => context.push('/posts/${post.id}'),
       ),

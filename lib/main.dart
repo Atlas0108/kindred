@@ -60,8 +60,8 @@ class KindredApp extends StatelessWidget {
 
     final firestore = FirebaseFirestore.instance;
     final auth = FirebaseAuth.instance;
-    final userProfileService = UserProfileService(firestore, auth);
     final storage = createKindredFirebaseStorage();
+    final userProfileService = UserProfileService(firestore, auth, storage);
     final postService = PostService(firestore, auth, storage);
     final eventService = EventService(firestore, auth, storage);
 

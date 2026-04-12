@@ -1,16 +1,25 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
 
 import '../kindred_trace.dart';
 import '../models/user_profile.dart';
+import '../utils/cover_image_prepare.dart';
 
 class UserProfileService {
-  UserProfileService(this._firestore, this._auth);
+  UserProfileService(this._firestore, this._auth, this._storage);
 
   final FirebaseFirestore _firestore;
   final FirebaseAuth _auth;
+  final FirebaseStorage _storage;
+  final _uuid = const Uuid();
+
+  static const Duration _storagePutTimeout = Duration(seconds: 180);
+  static const Duration _storageUrlTimeout = Duration(seconds: 45);
 
   static const Duration _profileCacheTtl = Duration(seconds: 45);
   static const Duration _fetchTimeout = Duration(seconds: 12);
@@ -24,6 +33,78 @@ class UserProfileService {
 
   DocumentReference<Map<String, dynamic>> _userRef(String uid) =>
       _firestore.collection('users').doc(uid);
+
+  Future<String> _awaitUploadTask(UploadTask task, Reference ref) async {
+    try {
+      await task.timeout(
+        _storagePutTimeout,
+        onTimeout: () async {
+          try {
+            await task.cancel();
+          } on Object catch (_) {}
+          throw TimeoutException(
+            'Profile photo upload timed out after ${_storagePutTimeout.inSeconds}s.',
+          );
+        },
+      );
+    } on FirebaseException catch (e) {
+      kindredTrace('UserProfileService._awaitUploadTask', '${e.code} ${e.message}');
+      rethrow;
+    }
+    return ref.getDownloadURL().timeout(
+      _storageUrlTimeout,
+      onTimeout: () => throw TimeoutException(
+        'Upload finished but timed out fetching the download URL.',
+      ),
+    );
+  }
+
+  /// Picks up gallery bytes or a web [Blob] (same pattern as post covers), uploads, sets [photoUrl].
+  Future<void> uploadAndSetProfilePhoto({
+    Uint8List? imageBytes,
+    Object? webImageBlob,
+    String? imageContentType,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+    await user.getIdToken(true);
+
+    final mime = (imageContentType ?? '').trim().isEmpty ? 'image/jpeg' : imageContentType!.trim();
+    final id = _uuid.v4();
+
+    if (webImageBlob != null) {
+      kindredTrace('UserProfileService.uploadAndSetProfilePhoto putBlob (web)', user.uid);
+      final ext = mime.toLowerCase().contains('png') ? 'png' : 'jpg';
+      final ref = _storage.ref('post_images/${user.uid}/profile_$id.$ext');
+      final task = ref.putBlob(
+        webImageBlob,
+        SettableMetadata(contentType: mime),
+      );
+      final url = await _awaitUploadTask(task, ref);
+      await _userRef(user.uid).set({'photoUrl': url}, SetOptions(merge: true));
+      invalidateProfileCache();
+      return;
+    }
+
+    if (imageBytes == null || imageBytes.isEmpty) {
+      throw ArgumentError('image bytes or web blob required');
+    }
+
+    final prepared = await prepareCoverImageForUploadAsync(imageBytes, mime);
+    kindredTrace(
+      'UserProfileService.uploadAndSetProfilePhoto prepared',
+      '${prepared.bytes.length} bytes',
+    );
+    final ext = prepared.contentType.toLowerCase().contains('png') ? 'png' : 'jpg';
+    final ref = _storage.ref('post_images/${user.uid}/profile_$id.$ext');
+    final task = ref.putData(
+      prepared.bytes,
+      SettableMetadata(contentType: prepared.contentType),
+    );
+    final url = await _awaitUploadTask(task, ref);
+    await _userRef(user.uid).set({'photoUrl': url}, SetOptions(merge: true));
+    invalidateProfileCache();
+  }
 
   /// Clears [fetchProfile] memory cache (call after writes).
   void invalidateProfileCache() {
@@ -148,6 +229,69 @@ class UserProfileService {
     await _userRef(
       user.uid,
     ).set({'displayName': name.trim().isEmpty ? 'Neighbor' : name.trim()}, SetOptions(merge: true));
+    invalidateProfileCache();
+  }
+
+  /// Updates the signed-in user’s public profile fields (merge). Empty strings clear optional fields.
+  Future<void> updatePublicProfile({
+    required String displayName,
+    required String? photoUrl,
+    required String? neighborhoodLabel,
+    required List<String> profileTags,
+    required int eventsAttended,
+    required int requestsFulfilled,
+    required String? eventsProgressNote,
+    required String? requestsProgressNote,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+
+    final tags = <String>[];
+    final seen = <String>{};
+    for (final t in profileTags) {
+      final s = t.trim();
+      if (s.isEmpty || seen.contains(s)) continue;
+      seen.add(s);
+      tags.add(s);
+      if (tags.length >= 3) break;
+    }
+
+    final data = <String, dynamic>{
+      'displayName': displayName.trim().isEmpty ? 'Neighbor' : displayName.trim(),
+      'profileTags': tags,
+      'eventsAttended': eventsAttended.clamp(0, 9999),
+      'requestsFulfilled': requestsFulfilled.clamp(0, 9999),
+    };
+
+    final pu = photoUrl?.trim();
+    if (pu == null || pu.isEmpty) {
+      data['photoUrl'] = FieldValue.delete();
+    } else {
+      data['photoUrl'] = pu;
+    }
+
+    final nb = neighborhoodLabel?.trim();
+    if (nb == null || nb.isEmpty) {
+      data['neighborhoodLabel'] = FieldValue.delete();
+    } else {
+      data['neighborhoodLabel'] = nb;
+    }
+
+    final en = eventsProgressNote?.trim();
+    if (en == null || en.isEmpty) {
+      data['eventsProgressNote'] = FieldValue.delete();
+    } else {
+      data['eventsProgressNote'] = en;
+    }
+
+    final rn = requestsProgressNote?.trim();
+    if (rn == null || rn.isEmpty) {
+      data['requestsProgressNote'] = FieldValue.delete();
+    } else {
+      data['requestsProgressNote'] = rn;
+    }
+
+    await _userRef(user.uid).set(data, SetOptions(merge: true));
     invalidateProfileCache();
   }
 }

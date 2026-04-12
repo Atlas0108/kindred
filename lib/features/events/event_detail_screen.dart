@@ -82,10 +82,14 @@ class _EventBodyState extends State<_EventBody> {
       ),
     );
     if (ok != true || !mounted) return;
+    final eventService = context.read<EventService>();
+    final goRouter = GoRouter.of(context);
     setState(() => _deleting = true);
     try {
-      await context.read<EventService>().deleteEvent(widget.event);
-      if (mounted) context.pop();
+      await eventService.deleteEvent(widget.event);
+      // StreamBuilder rebuilds as soon as the doc is gone, so this State can be
+      // disposed before await returns — use router captured above, not context.pop.
+      if (goRouter.canPop()) goRouter.pop();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));

@@ -18,6 +18,7 @@ import 'core/services/connection_service.dart';
 import 'core/services/event_service.dart';
 import 'core/services/messaging_service.dart';
 import 'core/services/post_service.dart';
+import 'core/services/saved_posts_service.dart';
 import 'core/services/user_profile_service.dart';
 import 'features/auth/setup_screen.dart';
 import 'firebase_options.dart';
@@ -96,6 +97,7 @@ class KindredApp extends StatelessWidget {
     final storage = createKindredFirebaseStorage();
     final userProfileService = UserProfileService(firestore, auth, storage);
     final postService = PostService(firestore, auth, storage);
+    final savedPostsService = SavedPostsService(firestore, auth);
     final eventService = EventService(firestore, auth, storage);
     final messagingService = MessagingService(firestore, auth);
     final connectionService = ConnectionService(firestore, auth);
@@ -104,6 +106,7 @@ class KindredApp extends StatelessWidget {
       providers: [
         Provider<UserProfileService>.value(value: userProfileService),
         Provider<PostService>.value(value: postService),
+        Provider<SavedPostsService>.value(value: savedPostsService),
         Provider<EventService>.value(value: eventService),
         Provider<MessagingService>.value(value: messagingService),
         Provider<ConnectionService>.value(value: connectionService),

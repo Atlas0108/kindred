@@ -11,6 +11,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/kindred_scaffold_messenger.dart';
+import '../../core/config/dev_compose_prefills.dart';
 import '../../core/constants/default_geo.dart';
 import '../../core/constants/event_tag_presets.dart';
 import '../../core/kindred_trace.dart';
@@ -70,9 +71,22 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           kindredTrace('CreateEventScreen postFrameCallback no user');
           return;
         }
-        unawaited(_applyProfileDefaults(u.uid));
+        unawaited(_bootstrapNewEventForm(u.uid));
       });
     }
+  }
+
+  Future<void> _bootstrapNewEventForm(String uid) async {
+    await _applyProfileDefaults(uid);
+    if (!mounted) return;
+    DevComposePrefills.applyNewEvent(
+      title: _title,
+      organizer: _organizer,
+      description: _description,
+      location: _locationText,
+      tags: _tags,
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadEventForEdit() async {

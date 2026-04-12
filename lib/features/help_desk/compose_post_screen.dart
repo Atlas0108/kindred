@@ -5,11 +5,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/kindred_scaffold_messenger.dart';
+import '../../core/config/dev_compose_prefills.dart';
 import '../../core/constants/default_geo.dart';
 import '../../core/constants/tag_presets.dart';
 import '../../core/kindred_trace.dart';
@@ -67,11 +69,22 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
       _postGeo = kDefaultGeoPoint;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        _applyDevPrefills();
         final u = FirebaseAuth.instance.currentUser;
         if (u == null) return;
         unawaited(_applyHomeGeo(u.uid));
       });
     }
+  }
+
+  void _applyDevPrefills() {
+    if (!dotenv.isInitialized) return;
+    if (_needHelp) {
+      DevComposePrefills.applyHelpRequest(title: _title, body: _body, tags: _tags);
+    } else {
+      DevComposePrefills.applyHelpOffer(title: _title, body: _body, tags: _tags);
+    }
+    setState(() {});
   }
 
   Future<void> _loadPostForEdit() async {

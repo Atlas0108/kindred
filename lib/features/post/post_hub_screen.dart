@@ -9,6 +9,7 @@ import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/post_service.dart';
+import '../../core/services/saved_posts_service.dart';
 import '../../core/utils/event_formatting.dart';
 
 /// Post tab: create new content, or browse your own posts.
@@ -25,7 +26,7 @@ class _PostHubScreenState extends State<PostHubScreen> with SingleTickerProvider
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -44,6 +45,7 @@ class _PostHubScreenState extends State<PostHubScreen> with SingleTickerProvider
           tabs: const [
             Tab(text: 'New Post'),
             Tab(text: 'My Posts'),
+            Tab(text: 'Saved Posts'),
           ],
         ),
       ),
@@ -52,6 +54,7 @@ class _PostHubScreenState extends State<PostHubScreen> with SingleTickerProvider
         children: const [
           _NewPostTab(),
           _MyPostsTab(),
+          _SavedPostsTab(),
         ],
       ),
     );
@@ -264,6 +267,128 @@ class _MyPostsTab extends StatelessWidget {
               itemBuilder: (context, i) => rows[i].tile,
             );
           },
+        );
+      },
+    );
+  }
+}
+
+class _SavedPostsTab extends StatelessWidget {
+  const _SavedPostsTab();
+
+  static String _kindLabel(PostKind k) {
+    return switch (k) {
+      PostKind.helpOffer => 'Offering help',
+      PostKind.helpRequest => 'Requesting help',
+      PostKind.communityEvent => 'Event',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Center(child: Text('Sign in to see saved posts.'));
+    }
+
+    final savedSvc = context.read<SavedPostsService>();
+
+    return StreamBuilder<List<KindredPost>>(
+      stream: savedSvc.savedPostsFeed(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snap.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Could not load saved posts.\n${snap.error}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+
+        final posts = snap.data ?? [];
+        final fmt = DateFormat.yMMMd().add_jm();
+
+        final tiles = <Widget>[];
+        for (final p in posts) {
+          if (p.kind == PostKind.communityEvent) {
+            final e = CommunityEvent.fromKindredPost(p);
+            if (e != null) {
+              tiles.add(
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: ListTile(
+                    leading: Icon(Icons.event_outlined, color: Colors.deepOrange.shade700),
+                    title: Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    subtitle: Text(
+                      'Event · ${formatEventScheduleLine(e)}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.push('/event/${p.id}'),
+                  ),
+                ),
+              );
+            }
+            continue;
+          }
+          tiles.add(
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                leading: Icon(Icons.article_outlined, color: Theme.of(context).colorScheme.primary),
+                title: Text(p.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                subtitle: Text(
+                  '${_kindLabel(p.kind)} · ${fmt.format(p.createdAt.toLocal())}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/posts/${p.id}'),
+              ),
+            ),
+          );
+        }
+
+        if (tiles.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.bookmark_border, size: 48, color: Theme.of(context).colorScheme.outline),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nothing saved yet',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Use the bookmark on home or discovery cards to save posts and events here.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          itemCount: tiles.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, i) => tiles[i],
         );
       },
     );

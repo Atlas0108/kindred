@@ -18,6 +18,7 @@ import '../../core/services/user_profile_service.dart';
 import '../../core/utils/event_formatting.dart';
 import '../../core/utils/merge_community_events.dart';
 import '../../widgets/post_author_row.dart';
+import '../../widgets/post_save_button.dart';
 
 /// Legacy "map" tab: list of posts and events near the profile (or default) point.
 class DiscoveryMapTab extends StatefulWidget {
@@ -142,31 +143,44 @@ class _PostRowTile extends StatelessWidget {
       PostKind.helpRequest => 'Request',
       PostKind.communityEvent => 'Event',
     };
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        isThreeLine: true,
-        leading: CircleAvatar(
-          backgroundColor: color.withValues(alpha: 0.2),
-          child: Text(label[0]),
-        ),
-        title: Text(post.title),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(DateFormat.yMMMd().add_jm().format(post.createdAt)),
-            PostAuthorTapRow(
-              authorId: post.authorId,
-              authorName: post.authorName,
-              avatarRadius: 16,
-              textStyle: Theme.of(context).textTheme.bodySmall,
-              enableProfileTap: false,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              isThreeLine: true,
+              leading: CircleAvatar(
+                backgroundColor: color.withValues(alpha: 0.2),
+                child: Text(label[0]),
+              ),
+              title: Text(post.title),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(DateFormat.yMMMd().add_jm().format(post.createdAt)),
+                  PostAuthorTapRow(
+                    authorId: post.authorId,
+                    authorName: post.authorName,
+                    avatarRadius: 16,
+                    textStyle: Theme.of(context).textTheme.bodySmall,
+                    enableProfileTap: false,
+                  ),
+                ],
+              ),
+              onTap: () => post.kind == PostKind.communityEvent
+                  ? context.push('/event/${post.id}')
+                  : context.push('/posts/${post.id}'),
             ),
-          ],
-        ),
-        onTap: () => post.kind == PostKind.communityEvent
-            ? context.push('/event/${post.id}')
-            : context.push('/posts/${post.id}'),
+          ),
+          Positioned(
+            right: 6,
+            bottom: 6,
+            child: PostSaveButton(contentId: post.id),
+          ),
+        ],
       ),
     );
   }
@@ -180,31 +194,44 @@ class _EventRowTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final host = event.organizerName.trim().isNotEmpty ? event.organizerName.trim() : 'Organizer';
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: ListTile(
-        isThreeLine: true,
-        leading: CircleAvatar(
-          backgroundColor: Colors.deepOrange.shade100,
-          child: Icon(Icons.event, color: Colors.deepOrange.shade800),
-        ),
-        title: Text(event.title),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(formatEventScheduleLine(event)),
-            const SizedBox(height: 6),
-            PostAuthorTapRow(
-              authorId: event.organizerId,
-              authorName: host,
-              prefix: 'Led by ',
-              avatarRadius: 16,
-              textStyle: Theme.of(context).textTheme.bodySmall,
-              enableProfileTap: false,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Card(
+            margin: EdgeInsets.zero,
+            child: ListTile(
+              isThreeLine: true,
+              leading: CircleAvatar(
+                backgroundColor: Colors.deepOrange.shade100,
+                child: Icon(Icons.event, color: Colors.deepOrange.shade800),
+              ),
+              title: Text(event.title),
+              subtitle: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(formatEventScheduleLine(event)),
+                  const SizedBox(height: 6),
+                  PostAuthorTapRow(
+                    authorId: event.organizerId,
+                    authorName: host,
+                    prefix: 'Led by ',
+                    avatarRadius: 16,
+                    textStyle: Theme.of(context).textTheme.bodySmall,
+                    enableProfileTap: false,
+                  ),
+                ],
+              ),
+              onTap: () => context.push('/event/${event.id}'),
             ),
-          ],
-        ),
-        onTap: () => context.push('/event/${event.id}'),
+          ),
+          Positioned(
+            right: 6,
+            bottom: 6,
+            child: PostSaveButton(contentId: event.id),
+          ),
+        ],
       ),
     );
   }

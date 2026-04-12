@@ -93,6 +93,16 @@ service cloud.firestore {
       }
     }
 
+    match /users/{userId}/savedPosts/{postId} {
+      allow read: if signedIn() && uid() == userId;
+      allow create: if signedIn()
+        && uid() == userId
+        && request.resource.data.postId == postId
+        && request.resource.data.keys().hasAll(['postId', 'savedAt']);
+      allow delete: if signedIn() && uid() == userId;
+      allow update: if false;
+    }
+
     // TEMPORARY: rest of the app (users, posts, events, etc.)
     match /{document=**} {
       allow read, write: if request.auth != null;

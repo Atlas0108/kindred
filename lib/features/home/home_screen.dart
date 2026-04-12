@@ -12,6 +12,21 @@ import '../../core/models/post_kind.dart';
 import '../../core/services/event_service.dart';
 import '../../core/services/post_service.dart';
 import '../../widgets/post_author_row.dart';
+import '../../widgets/post_save_button.dart';
+
+Widget _feedCardWithSave(String contentId, Widget editorialCard) {
+  return Stack(
+    clipBehavior: Clip.none,
+    children: [
+      editorialCard,
+      Positioned(
+        right: 6,
+        bottom: 6,
+        child: PostSaveButton(contentId: contentId),
+      ),
+    ],
+  );
+}
 
 /// Home: community events and help-desk posts (newest first), with category tabs.
 class HomeScreen extends StatefulWidget {
@@ -432,61 +447,64 @@ class _EventFeedCard extends StatelessWidget {
     final month = DateFormat('MMM').format(start).toUpperCase();
     final day = DateFormat('d').format(start);
 
-    return _EditorialCard(
-      onTap: () => context.push('/event/${event.id}'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _DateBadge(month: month, day: day, backgroundColor: _badgeColor()),
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Icon(Icons.arrow_forward, size: 22, color: _arrowColor),
+    return _feedCardWithSave(
+      event.id,
+      _EditorialCard(
+        onTap: () => context.push('/event/${event.id}'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _DateBadge(month: month, day: day, backgroundColor: _badgeColor()),
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Icon(Icons.arrow_forward, size: 22, color: _arrowColor),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _categoryLabel(),
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: _categoryColor,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 1.1,
+                fontSize: 11,
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            _categoryLabel(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: _categoryColor,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.1,
-              fontSize: 11,
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            event.title,
-            style: GoogleFonts.lora(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              height: 1.25,
-              color: const Color(0xFF141414),
+            const SizedBox(height: 8),
+            Text(
+              event.title,
+              style: GoogleFonts.lora(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                height: 1.25,
+                color: const Color(0xFF141414),
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _descriptionPreview(),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.45),
-          ),
-          const SizedBox(height: 20),
-          PostAuthorTapRow(
-            authorId: event.organizerId,
-            authorName: event.organizerName.trim().isNotEmpty
-                ? event.organizerName.trim()
-                : 'Organizer',
-            prefix: 'Led by ',
-            enableProfileTap: false,
-          ),
-        ],
+            const SizedBox(height: 10),
+            Text(
+              _descriptionPreview(),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.45),
+            ),
+            const SizedBox(height: 20),
+            PostAuthorTapRow(
+              authorId: event.organizerId,
+              authorName: event.organizerName.trim().isNotEmpty
+                  ? event.organizerName.trim()
+                  : 'Organizer',
+              prefix: 'Led by ',
+              enableProfileTap: false,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -496,100 +514,103 @@ class _EventFeedCard extends StatelessWidget {
     final timeText = DateFormat.jm().format(event.startsAt.toLocal());
     final host = event.organizerName.trim().isNotEmpty ? event.organizerName.trim() : 'Organizer';
 
-    return _EditorialCard(
-      onTap: () => context.push('/event/${event.id}'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: AspectRatio(
-              aspectRatio: 4 / 3,
-              child: Image.network(
-                url,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return ColoredBox(
-                    color: Colors.grey.shade200,
-                    child: Center(
-                      child: SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.grey.shade500,
+    return _feedCardWithSave(
+      event.id,
+      _EditorialCard(
+        onTap: () => context.push('/event/${event.id}'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return ColoredBox(
+                      color: Colors.grey.shade200,
+                      child: Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.grey.shade500,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-                errorBuilder: (_, __, ___) => ColoredBox(
-                  color: Colors.grey.shade300,
-                  child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600, size: 48),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  _categoryLabel(),
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: _forestCategory,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.9,
-                    fontSize: 11,
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => ColoredBox(
+                    color: Colors.grey.shade300,
+                    child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600, size: 48),
                   ),
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.schedule, size: 16, color: _metaGrey.withValues(alpha: 0.9)),
-                  const SizedBox(width: 4),
-                  Text(
-                    timeText,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: _metaGrey,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
+            ),
+            const SizedBox(height: 18),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    _categoryLabel(),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: _forestCategory,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.9,
+                      fontSize: 11,
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            event.title,
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 26,
-              fontWeight: FontWeight.w500,
-              height: 1.2,
-              color: const Color(0xFF141414),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.schedule, size: 16, color: _metaGrey.withValues(alpha: 0.9)),
+                    const SizedBox(width: 4),
+                    Text(
+                      timeText,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: _metaGrey,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _descriptionPreview(),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.5, fontSize: 15),
-          ),
-          const SizedBox(height: 20),
-          PostAuthorTapRow(
-            authorId: event.organizerId,
-            authorName: host,
-            prefix: 'Led by ',
-            enableProfileTap: false,
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              event.title,
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 26,
+                fontWeight: FontWeight.w500,
+                height: 1.2,
+                color: const Color(0xFF141414),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _descriptionPreview(),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.5, fontSize: 15),
+            ),
+            const SizedBox(height: 20),
+            PostAuthorTapRow(
+              authorId: event.organizerId,
+              authorName: host,
+              prefix: 'Led by ',
+              enableProfileTap: false,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -749,70 +770,73 @@ class _PostFeedCard extends StatelessWidget {
     final month = DateFormat('MMM').format(created).toUpperCase();
     final day = DateFormat('d').format(created);
 
-    return _EditorialCard(
-      onTap: () => _openDetail(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _DateBadge(month: month, day: day, backgroundColor: _badgeColor()),
-              const Padding(
-                padding: EdgeInsets.only(top: 6),
-                child: Icon(Icons.arrow_forward, size: 22, color: _arrowColor),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            _categoryLabel(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: _categoryColor,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.1,
-              fontSize: 11,
+    return _feedCardWithSave(
+      post.id,
+      _EditorialCard(
+        onTap: () => _openDetail(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _DateBadge(month: month, day: day, backgroundColor: _badgeColor()),
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Icon(Icons.arrow_forward, size: 22, color: _arrowColor),
+                ),
+              ],
             ),
-          ),
-          if (post.status == PostStatus.fulfilled) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 20),
             Text(
-              'FULFILLED',
+              _categoryLabel(),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: _categoryColor,
                 fontWeight: FontWeight.w600,
-                letterSpacing: 1.0,
-                fontSize: 10,
+                letterSpacing: 1.1,
+                fontSize: 11,
               ),
             ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            post.title,
-            style: GoogleFonts.lora(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              height: 1.25,
-              color: const Color(0xFF141414),
+            if (post.status == PostStatus.fulfilled) ...[
+              const SizedBox(height: 6),
+              Text(
+                'FULFILLED',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: _categoryColor,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.0,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              post.title,
+              style: GoogleFonts.lora(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                height: 1.25,
+                color: const Color(0xFF141414),
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _descriptionPreview(),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.45),
-          ),
-          const SizedBox(height: 20),
-          PostAuthorTapRow(
-            authorId: post.authorId,
-            authorName: post.authorName,
-            enableProfileTap: false,
-          ),
-        ],
+            const SizedBox(height: 10),
+            Text(
+              _descriptionPreview(),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.45),
+            ),
+            const SizedBox(height: 20),
+            PostAuthorTapRow(
+              authorId: post.authorId,
+              authorName: post.authorName,
+              enableProfileTap: false,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -821,116 +845,119 @@ class _PostFeedCard extends StatelessWidget {
     final url = post.imageUrl!.trim();
     final timeText = DateFormat.jm().format(post.createdAt.toLocal());
 
-    return _EditorialCard(
-      onTap: () => _openDetail(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: AspectRatio(
-              aspectRatio: 4 / 3,
-              child: Image.network(
-                url,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return ColoredBox(
-                    color: Colors.grey.shade200,
-                    child: Center(
-                      child: SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.grey.shade500,
+    return _feedCardWithSave(
+      post.id,
+      _EditorialCard(
+        onTap: () => _openDetail(context),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: AspectRatio(
+                aspectRatio: 4 / 3,
+                child: Image.network(
+                  url,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return ColoredBox(
+                      color: Colors.grey.shade200,
+                      child: Center(
+                        child: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.grey.shade500,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-                errorBuilder: (_, __, ___) => ColoredBox(
-                  color: Colors.grey.shade300,
-                  child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600, size: 48),
+                    );
+                  },
+                  errorBuilder: (_, __, ___) => ColoredBox(
+                    color: Colors.grey.shade300,
+                    child: Icon(Icons.broken_image_outlined, color: Colors.grey.shade600, size: 48),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 18),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _heroCategoryLine(),
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: _forestCategory,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.9,
-                        fontSize: 11,
-                      ),
-                    ),
-                    if (post.status == PostStatus.fulfilled) ...[
-                      const SizedBox(height: 4),
+            const SizedBox(height: 18),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        'FULFILLED',
+                        _heroCategoryLine(),
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: _forestCategory,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.8,
-                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.9,
+                          fontSize: 11,
                         ),
                       ),
+                      if (post.status == PostStatus.fulfilled) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'FULFILLED',
+                          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: _forestCategory,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
                     ],
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.schedule, size: 16, color: _metaGrey.withValues(alpha: 0.9)),
+                    const SizedBox(width: 4),
+                    Text(
+                      timeText,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: _metaGrey,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.schedule, size: 16, color: _metaGrey.withValues(alpha: 0.9)),
-                  const SizedBox(width: 4),
-                  Text(
-                    timeText,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: _metaGrey,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            post.title,
-            style: GoogleFonts.playfairDisplay(
-              fontSize: 26,
-              fontWeight: FontWeight.w500,
-              height: 1.2,
-              color: const Color(0xFF141414),
+              ],
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _descriptionPreview(),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.5, fontSize: 15),
-          ),
-          const SizedBox(height: 20),
-          PostAuthorTapRow(
-            authorId: post.authorId,
-            authorName: post.authorName,
-            enableProfileTap: false,
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              post.title,
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 26,
+                fontWeight: FontWeight.w500,
+                height: 1.2,
+                color: const Color(0xFF141414),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _descriptionPreview(),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: _bodyColor, height: 1.5, fontSize: 15),
+            ),
+            const SizedBox(height: 20),
+            PostAuthorTapRow(
+              authorId: post.authorId,
+              authorName: post.authorName,
+              enableProfileTap: false,
+            ),
+          ],
+        ),
       ),
     );
   }

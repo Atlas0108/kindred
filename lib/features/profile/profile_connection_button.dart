@@ -96,8 +96,9 @@ class _ProfileConnectionButtonState extends State<ProfileConnectionButton> {
     setState(() => _busy = true);
     try {
       final p = await profileSvc.fetchProfile(me.uid);
-      final name = p?.displayName.trim().isNotEmpty == true
-          ? p!.displayName
+      final name = p?.publicDisplayLabel.trim().isNotEmpty == true &&
+              p!.publicDisplayLabel != 'Neighbor'
+          ? p.publicDisplayLabel
           : UserProfileService.preferredDisplayNameFromAuthUser(me);
       await connectionSvc.sendConnectionRequest(
             toUserId: widget.otherUid,
@@ -139,8 +140,9 @@ class _ProfileConnectionButtonState extends State<ProfileConnectionButton> {
           : widget.otherDisplayName;
 
       final p = await profileSvc.fetchProfile(me.uid);
-      final myName = p?.displayName.trim().isNotEmpty == true
-          ? p!.displayName
+      final myName = p?.publicDisplayLabel.trim().isNotEmpty == true &&
+              p!.publicDisplayLabel != 'Neighbor'
+          ? p.publicDisplayLabel
           : UserProfileService.preferredDisplayNameFromAuthUser(me);
 
       await connectionSvc.approveConnectionRequest(

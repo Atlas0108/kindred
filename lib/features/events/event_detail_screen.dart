@@ -338,7 +338,7 @@ class _EventBodyState extends State<_EventBody> {
 
   static Future<String> _displayName(UserProfileService svc, String uid) async {
     final p = await svc.fetchProfile(uid);
-    return p?.displayName ?? uid;
+    return p?.publicDisplayLabel ?? uid;
   }
 }
 

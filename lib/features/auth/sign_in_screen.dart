@@ -50,7 +50,6 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-  final _displayName = TextEditingController();
   bool _register = false;
   bool _busy = false;
   String? _error;
@@ -77,24 +76,13 @@ class _SignInScreenState extends State<SignInScreen> {
   void dispose() {
     _email.dispose();
     _password.dispose();
-    _displayName.dispose();
     super.dispose();
   }
 
-  String _resolveDisplayName(User u) {
-    for (final s in [u.displayName?.trim(), u.email?.trim(), _displayName.text.trim()]) {
-      if (s != null && s.isNotEmpty) return s;
-    }
-    return 'Neighbor';
-  }
-
-  Future<void> _ensureProfileInBackground(
-    UserProfileService svc,
-    String displayName,
-  ) async {
-    kindredTrace('SignIn._ensureProfileInBackground start', displayName);
+  Future<void> _ensureProfileInBackground(UserProfileService svc) async {
+    kindredTrace('SignIn._ensureProfileInBackground start', 'Neighbor');
     try {
-      await svc.ensureProfile(displayName: displayName);
+      await svc.ensureProfile(displayName: 'Neighbor');
       kindredTrace('SignIn._ensureProfileInBackground done OK');
     } catch (e, st) {
       kindredTrace('SignIn._ensureProfileInBackground catch (ignored)', e);
@@ -117,18 +105,11 @@ class _SignInScreenState extends State<SignInScreen> {
       final auth = FirebaseAuth.instance;
       if (_register) {
         kindredTrace('SignIn._submit createUserWithEmailAndPassword...');
-        final cred = await auth.createUserWithEmailAndPassword(
+        await auth.createUserWithEmailAndPassword(
           email: _email.text.trim(),
           password: _password.text,
         );
         kindredTrace('SignIn._submit createUser OK');
-        if (!mounted) return;
-        final name = _displayName.text.trim();
-        if (name.isNotEmpty) {
-          kindredTrace('SignIn._submit updateDisplayName...');
-          await cred.user?.updateDisplayName(name);
-          kindredTrace('SignIn._submit updateDisplayName OK');
-        }
         if (!mounted) return;
       } else {
         kindredTrace('SignIn._submit signInWithEmailAndPassword...');
@@ -151,9 +132,7 @@ class _SignInScreenState extends State<SignInScreen> {
       didRequestNavigation = true;
       kindredTrace('SignIn._submit context.go(/home)');
       if (mounted) context.go('/home');
-      final displayName = _resolveDisplayName(u);
-      kindredTrace('SignIn._submit fire ensureProfile background');
-      unawaited(_ensureProfileInBackground(userProfileService, displayName));
+      unawaited(_ensureProfileInBackground(userProfileService));
     } on FirebaseAuthException catch (e) {
       kindredTrace('SignIn._submit FirebaseAuthException', e.code);
       setState(() => _error = _formatAuthError(e));
@@ -192,14 +171,6 @@ class _SignInScreenState extends State<SignInScreen> {
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 24),
-                  if (_register) ...[
-                    TextField(
-                      controller: _displayName,
-                      decoration: const InputDecoration(labelText: 'Display name'),
-                      textInputAction: TextInputAction.next,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
                   TextField(
                     controller: _email,
                     decoration: const InputDecoration(labelText: 'Email'),

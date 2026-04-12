@@ -57,8 +57,9 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       final myProfile = await profileSvc.fetchProfile(me.uid);
       if (!mounted) return;
-      final myName = myProfile?.displayName.trim().isNotEmpty == true
-          ? myProfile!.displayName
+      final myName = myProfile?.publicDisplayLabel.trim().isNotEmpty == true &&
+              myProfile!.publicDisplayLabel != 'Neighbor'
+          ? myProfile.publicDisplayLabel
           : (me.displayName?.trim().isNotEmpty == true ? me.displayName!.trim() : 'Neighbor');
       await msg.ensureDirectConversation(
         otherUserId: extra.otherUserId,

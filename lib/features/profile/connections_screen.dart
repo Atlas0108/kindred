@@ -273,8 +273,9 @@ class _RequestsList extends StatelessWidget {
     try {
       final profileSvc = context.read<UserProfileService>();
       final p = await profileSvc.fetchProfile(me.uid);
-      final myName = p?.displayName.trim().isNotEmpty == true
-          ? p!.displayName
+      final myName = p?.publicDisplayLabel.trim().isNotEmpty == true &&
+              p!.publicDisplayLabel != 'Neighbor'
+          ? p.publicDisplayLabel
           : UserProfileService.preferredDisplayNameFromAuthUser(me);
 
       await svc.approveConnectionRequest(

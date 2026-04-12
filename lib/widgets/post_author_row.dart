@@ -133,8 +133,11 @@ class PostAuthorTapRow extends StatelessWidget {
                 : svc.profileStream(authorId),
             builder: (context, snap) {
               final profile = snap.data;
-              final displayName = (profile?.displayName.trim().isNotEmpty ?? false)
-                  ? profile!.displayName
+              final fromProfile = profile?.publicDisplayLabel.trim();
+              final displayName = (fromProfile != null &&
+                      fromProfile.isNotEmpty &&
+                      fromProfile != 'Neighbor')
+                  ? fromProfile
                   : authorName;
               final url = profile?.photoUrl?.trim();
               final bg = placeholderBackgroundColor ?? Colors.grey.shade300;

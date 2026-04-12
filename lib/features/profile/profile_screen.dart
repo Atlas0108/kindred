@@ -101,11 +101,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _selfEnsureRequested = true;
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (!mounted) return;
-                    unawaited(
-                      svc.ensureProfile(
-                        displayName: UserProfileService.preferredDisplayNameFromAuthUser(user),
-                      ),
-                    );
+                    unawaited(svc.ensureProfile(displayName: 'Neighbor'));
                   });
                 }
                 return const Center(
@@ -240,9 +236,13 @@ class _ProfileBodyState extends State<_ProfileBody> {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
     final id = MessagingService.conversationIdForPair(me.uid, profile.uid);
+    final otherName = UserProfile.displayNameForUi(
+      profile.publicDisplayLabel,
+      accountEmail: widget.viewingSelf ? me.email : null,
+    );
     context.push(
       '/chat/$id',
-      extra: ChatScreenRouteExtra(otherUserId: profile.uid, otherDisplayName: profile.displayName),
+      extra: ChatScreenRouteExtra(otherUserId: profile.uid, otherDisplayName: otherName),
     );
   }
 
@@ -255,6 +255,11 @@ class _ProfileBodyState extends State<_ProfileBody> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final me = FirebaseAuth.instance.currentUser;
+    final headerName = UserProfile.displayNameForUi(
+      profile.publicDisplayLabel,
+      accountEmail: widget.viewingSelf ? me?.email : null,
+    );
     final sinceYear = profile.createdAt?.year;
     final city = profile.homeCityLabel?.trim();
     final nb = profile.neighborhoodLabel?.trim();
@@ -305,7 +310,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
                             child: Stack(
                               fit: StackFit.expand,
                               children: [
-                                _Avatar(photoUrl: profile.photoUrl, name: profile.displayName),
+                                _Avatar(photoUrl: profile.photoUrl, name: headerName),
                                 if (_uploadingPhoto)
                                   ColoredBox(
                                     color: Colors.black26,
@@ -354,7 +359,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
               ),
               const SizedBox(height: 20),
               Text(
-                profile.displayName,
+                headerName,
                 textAlign: TextAlign.center,
                 style: serif(
                   fontSize: 28,
@@ -496,7 +501,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
               if (!widget.viewingSelf)
                 ProfileConnectionButton(
                   otherUid: profile.uid,
-                  otherDisplayName: profile.displayName,
+                  otherDisplayName: profile.publicDisplayLabel,
                 ),
               const SizedBox(height: 28),
               _ConnectionsMetricCard(
@@ -719,39 +724,43 @@ class _ProfileEditSheet extends StatefulWidget {
 }
 
 class _ProfileEditSheetState extends State<_ProfileEditSheet> {
-  late final TextEditingController _name;
+  late final TextEditingController _firstName;
+  late final TextEditingController _lastName;
   late final TextEditingController _bio;
-  late final TextEditingController _neighborhood;
-  late final TextEditingController _photoUrl;
 
   @override
   void initState() {
     super.initState();
     final p = widget.profile;
-    _name = TextEditingController(text: p.displayName);
+    _firstName = TextEditingController(text: p.firstName ?? '');
+    _lastName = TextEditingController(text: p.lastName ?? '');
     _bio = TextEditingController(text: p.bio ?? '');
-    _neighborhood = TextEditingController(text: p.neighborhoodLabel ?? '');
-    _photoUrl = TextEditingController(text: p.photoUrl ?? '');
   }
 
   @override
   void dispose() {
-    _name.dispose();
+    _firstName.dispose();
+    _lastName.dispose();
     _bio.dispose();
-    _neighborhood.dispose();
-    _photoUrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
+    if (_firstName.text.trim().isEmpty || _lastName.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('First and last name are required.')),
+      );
+      return;
+    }
     final svc = context.read<UserProfileService>();
     final p = widget.profile;
     try {
       await svc.updatePublicProfile(
-        displayName: _name.text,
-        photoUrl: _photoUrl.text.trim().isEmpty ? null : _photoUrl.text,
+        firstName: _firstName.text,
+        lastName: _lastName.text,
+        photoUrl: p.photoUrl?.trim().isNotEmpty == true ? p.photoUrl : null,
         bio: _bio.text.trim().isEmpty ? null : _bio.text,
-        neighborhoodLabel: _neighborhood.text.trim().isEmpty ? null : _neighborhood.text,
+        neighborhoodLabel: p.neighborhoodLabel?.trim().isNotEmpty == true ? p.neighborhoodLabel : null,
         profileTags: p.profileTags,
         eventsAttended: p.eventsAttended,
         requestsFulfilled: p.requestsFulfilled,
@@ -799,8 +808,14 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
             ),
             const SizedBox(height: 20),
             TextField(
-              controller: _name,
-              decoration: const InputDecoration(labelText: 'Display name'),
+              controller: _firstName,
+              decoration: const InputDecoration(labelText: 'First name'),
+              textCapitalization: TextCapitalization.words,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _lastName,
+              decoration: const InputDecoration(labelText: 'Last name'),
               textCapitalization: TextCapitalization.words,
             ),
             const SizedBox(height: 12),
@@ -815,23 +830,6 @@ class _ProfileEditSheetState extends State<_ProfileEditSheet> {
               minLines: 3,
               maxLength: UserProfileService.maxBioLength,
               textCapitalization: TextCapitalization.sentences,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _neighborhood,
-              decoration: const InputDecoration(
-                labelText: 'Neighborhood label',
-                hintText: 'e.g. Oak Creek Neighbor',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _photoUrl,
-              decoration: const InputDecoration(
-                labelText: 'Photo URL (optional)',
-                hintText: 'https://…',
-              ),
-              keyboardType: TextInputType.url,
             ),
             const SizedBox(height: 24),
             FilledButton(

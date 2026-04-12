@@ -34,12 +34,20 @@ class UserProfileService {
   DocumentReference<Map<String, dynamic>> _userRef(String uid) =>
       _firestore.collection('users').doc(uid);
 
-  /// Display name for new/merged `users/{uid}` docs: Auth profile name, else email, else a neutral label.
+  /// Auth-backed label for `ensureProfile` / connections — uses [User.displayName] only, never email.
   static String preferredDisplayNameFromAuthUser(User user) {
-    for (final s in [user.displayName?.trim(), user.email?.trim()]) {
-      if (s != null && s.isNotEmpty) return s;
-    }
+    final d = user.displayName?.trim();
+    if (d != null && d.isNotEmpty) return d;
     return 'Neighbor';
+  }
+
+  /// Value stored in `users/{uid}.displayName`: empty or the account email becomes [Neighbor].
+  static String displayNameForStorage(User user, String raw) {
+    final t = raw.trim();
+    if (t.isEmpty) return 'Neighbor';
+    final em = user.email?.trim();
+    if (em != null && em.isNotEmpty && t == em) return 'Neighbor';
+    return t;
   }
 
   Future<String> _awaitUploadTask(UploadTask task, Reference ref) async {
@@ -209,9 +217,10 @@ class UserProfileService {
       return;
     }
     kindredTrace('UserProfileService.ensureProfile before .set() create user doc');
+    final storedName = displayNameForStorage(user, displayName);
     try {
       await ref.set({
-        'displayName': displayName,
+        'displayName': storedName,
         'discoveryRadiusMiles': 25,
         'karma': 0,
         'createdAt': Timestamp.fromDate(DateTime.now().toUtc()),
@@ -280,17 +289,49 @@ class UserProfileService {
   Future<void> updateDisplayName(String name) async {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
-    await _userRef(
-      user.uid,
-    ).set({'displayName': name.trim().isEmpty ? 'Neighbor' : name.trim()}, SetOptions(merge: true));
+    await _userRef(user.uid).set(
+      {'displayName': displayNameForStorage(user, name)},
+      SetOptions(merge: true),
+    );
     invalidateProfileCache();
   }
 
   static const int maxBioLength = 500;
 
+  /// Saves first/last name and optional bio during profile setup (home is set via [updateHomeAndRadius]).
+  Future<void> updateProfileNamesAndOptionalBio({
+    required String firstName,
+    required String lastName,
+    String? bio,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('Not signed in');
+    final f = firstName.trim();
+    final l = lastName.trim();
+    if (f.isEmpty || l.isEmpty) {
+      throw ArgumentError('First and last name are required.');
+    }
+    final combined = '$f $l'.trim();
+    final data = <String, dynamic>{
+      'firstName': f,
+      'lastName': l,
+      'displayName': displayNameForStorage(user, combined),
+    };
+    final bioTrim = bio?.trim();
+    if (bioTrim != null && bioTrim.isNotEmpty) {
+      data['bio'] = bioTrim.length > maxBioLength ? bioTrim.substring(0, maxBioLength) : bioTrim;
+    }
+    await _userRef(user.uid).set(data, SetOptions(merge: true));
+    try {
+      await user.updateDisplayName(combined);
+    } on Object catch (_) {}
+    invalidateProfileCache();
+  }
+
   /// Updates the signed-in user’s public profile fields (merge). Empty strings clear optional fields.
   Future<void> updatePublicProfile({
-    required String displayName,
+    required String firstName,
+    required String lastName,
     required String? photoUrl,
     required String? bio,
     required String? neighborhoodLabel,
@@ -303,6 +344,10 @@ class UserProfileService {
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
 
+    final f = firstName.trim();
+    final l = lastName.trim();
+    final combined = '$f $l'.trim();
+
     final tags = <String>[];
     final seen = <String>{};
     for (final t in profileTags) {
@@ -314,7 +359,9 @@ class UserProfileService {
     }
 
     final data = <String, dynamic>{
-      'displayName': displayName.trim().isEmpty ? 'Neighbor' : displayName.trim(),
+      'firstName': f,
+      'lastName': l,
+      'displayName': displayNameForStorage(user, combined.isEmpty ? 'Neighbor' : combined),
       'profileTags': tags,
       'eventsAttended': eventsAttended.clamp(0, 9999),
       'requestsFulfilled': requestsFulfilled.clamp(0, 9999),

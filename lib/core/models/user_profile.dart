@@ -4,6 +4,8 @@ class UserProfile {
   const UserProfile({
     required this.uid,
     required this.displayName,
+    this.firstName,
+    this.lastName,
     this.photoUrl,
     this.bio,
     this.homeGeoPoint,
@@ -23,6 +25,8 @@ class UserProfile {
 
   final String uid;
   final String displayName;
+  final String? firstName;
+  final String? lastName;
   final String? photoUrl;
   /// Short about text; shown on profile.
   final String? bio;
@@ -44,6 +48,33 @@ class UserProfile {
   final String? eventsProgressNote;
   final String? requestsProgressNote;
 
+  /// Shown in UI when [accountEmail] is the signed-in user’s email (hides legacy `displayName == email`).
+  static String displayNameForUi(String storedName, {String? accountEmail}) {
+    final d = storedName.trim();
+    if (d.isEmpty) return 'Neighbor';
+    final em = accountEmail?.trim();
+    if (em != null && em.isNotEmpty && d == em) return 'Neighbor';
+    return d;
+  }
+
+  /// Public-facing name: "First Last" when set, else legacy [displayName] (if not placeholder).
+  String get publicDisplayLabel {
+    final f = firstName?.trim() ?? '';
+    final l = lastName?.trim() ?? '';
+    final combined = '$f $l'.trim();
+    if (combined.isNotEmpty) return combined;
+    final d = displayName.trim();
+    if (d.isNotEmpty && d != 'Neighbor') return d;
+    return 'Neighbor';
+  }
+
+  /// First name, last name, and home map pin are required before the rest of the app.
+  bool get isProfileSetupComplete {
+    final f = firstName?.trim() ?? '';
+    final l = lastName?.trim() ?? '';
+    return f.isNotEmpty && l.isNotEmpty && homeGeoPoint != null;
+  }
+
   static UserProfile fromDoc(String uid, Map<String, dynamic> data) {
     final home = data['homeGeoPoint'];
     final rawTags = data['profileTags'];
@@ -54,11 +85,15 @@ class UserProfile {
       }
     }
     final rawBio = (data['bio'] as String?)?.trim();
+    final fn = (data['firstName'] as String?)?.trim();
+    final ln = (data['lastName'] as String?)?.trim();
     return UserProfile(
       uid: uid,
       displayName: (data['displayName'] as String?)?.trim().isNotEmpty == true
           ? data['displayName'] as String
           : 'Neighbor',
+      firstName: fn != null && fn.isNotEmpty ? fn : null,
+      lastName: ln != null && ln.isNotEmpty ? ln : null,
       photoUrl: data['photoUrl'] as String?,
       bio: rawBio != null && rawBio.isNotEmpty ? rawBio : null,
       homeGeoPoint: home is GeoPoint ? home : null,
@@ -84,6 +119,8 @@ class UserProfile {
   Map<String, dynamic> toWriteMap() {
     return {
       'displayName': displayName,
+      if (firstName != null && firstName!.trim().isNotEmpty) 'firstName': firstName!.trim(),
+      if (lastName != null && lastName!.trim().isNotEmpty) 'lastName': lastName!.trim(),
       if (photoUrl != null && photoUrl!.trim().isNotEmpty) 'photoUrl': photoUrl!.trim(),
       if (bio != null && bio!.trim().isNotEmpty) 'bio': bio!.trim(),
       if (homeGeoPoint != null) 'homeGeoPoint': homeGeoPoint,

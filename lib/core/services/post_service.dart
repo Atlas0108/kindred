@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../kindred_trace.dart';
 import '../geo/geo_utils.dart';
+import '../models/user_profile.dart';
 import '../models/post.dart';
 import '../models/post_kind.dart';
 import '../utils/cover_image_prepare.dart';
@@ -83,13 +84,17 @@ class PostService {
   }
 
   Future<String> _authorDisplayName(User user) async {
+    final em = user.email?.trim();
     final dn = user.displayName?.trim();
-    if (dn != null && dn.isNotEmpty) return dn;
+    if (dn != null && dn.isNotEmpty && dn != em) return dn;
     try {
       final doc = await _firestore.collection('users').doc(user.uid).get();
-      final fromProfile = doc.data()?['displayName'] as String?;
-      final t = fromProfile?.trim();
-      if (t != null && t.isNotEmpty) return t;
+      final data = doc.data();
+      if (data != null) {
+        final p = UserProfile.fromDoc(user.uid, data);
+        final label = p.publicDisplayLabel.trim();
+        if (label.isNotEmpty && label != 'Neighbor') return label;
+      }
     } on Exception catch (e) {
       kindredTrace('PostService._authorDisplayName profile read', e);
     }

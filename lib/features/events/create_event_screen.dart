@@ -158,7 +158,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             label: label != null && label.isNotEmpty ? label : 'Home',
           );
         }
-        final name = p?.displayName.trim();
+        final name = p?.publicDisplayLabel.trim();
         if (name != null &&
             name.isNotEmpty &&
             name != 'Neighbor' &&

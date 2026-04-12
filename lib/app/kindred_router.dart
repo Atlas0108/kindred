@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/config/app_config.dart' show isFirebaseConfigured;
 import '../core/models/post_kind.dart';
+import '../features/auth/profile_setup_screen.dart';
 import '../features/auth/setup_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/events/create_event_screen.dart';
@@ -16,20 +17,18 @@ import '../features/inbox/inbox_screen.dart';
 import '../features/post/post_hub_screen.dart';
 import '../features/profile/connections_screen.dart';
 import '../features/profile/profile_screen.dart';
-import 'go_router_refresh.dart';
+import 'kindred_profile_gate_refresh.dart';
 import 'shell/app_shell.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
 );
 
-GoRouter createKindredRouter() {
+GoRouter createKindredRouter({required KindredProfileGateRefresh profileGateRefresh}) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
-    refreshListenable: isFirebaseConfigured
-        ? GoRouterRefreshStream(FirebaseAuth.instance.authStateChanges())
-        : null,
+    refreshListenable: profileGateRefresh,
     redirect: (context, state) {
       if (!isFirebaseConfigured) {
         return state.uri.path == '/setup' ? null : '/setup';
@@ -47,7 +46,13 @@ GoRouter createKindredRouter() {
         return '/home';
       }
 
-      if (path == '/sign-in' || path == '/setup') {
+      final complete = profileGateRefresh.setupComplete;
+      if (complete != true) {
+        if (path == '/profile-setup' || path == '/sign-in') return null;
+        return '/profile-setup';
+      }
+
+      if (path == '/profile-setup' || path == '/sign-in' || path == '/setup') {
         return '/home';
       }
 
@@ -65,6 +70,10 @@ GoRouter createKindredRouter() {
       GoRoute(
         path: '/sign-in',
         builder: (context, state) => const SignInScreen(),
+      ),
+      GoRoute(
+        path: '/profile-setup',
+        builder: (context, state) => const ProfileSetupScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {

@@ -7,11 +7,15 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/view_as_controller.dart';
+import '../../core/models/post.dart';
+import '../../core/models/post_kind.dart';
 import '../../core/models/user_account_type.dart';
 import '../../core/models/user_profile.dart';
+import '../../core/services/post_service.dart';
 import '../../core/services/connection_service.dart';
 import '../../core/services/messaging_service.dart';
 import '../../core/services/user_profile_service.dart';
@@ -19,8 +23,9 @@ import '../inbox/chat_screen.dart';
 import 'profile_connection_button.dart';
 import 'set_home_area_sheet.dart';
 import '../../core/utils/blob_from_object_url.dart';
-import '../../widgets/didit_verification_sheet.dart';
+// import '../../widgets/didit_verification_sheet.dart';
 import '../../widgets/pending_connection_requests_badge.dart';
+import '../../widgets/post_kind_icon_badge.dart';
 import '../../widgets/view_as_identity_menu.dart';
 
 /// Matches the Kindred home cream canvas.
@@ -30,12 +35,10 @@ const _headerGreen = Color(0xFF2E7D5A);
 const _editFabGreen = Color(0xFF1F5C40);
 const _slateSubtitle = Color(0xFF5B6B7A);
 const _statBlue = Color(0xFF3D5A80);
-/// Verified badge on own profile (below location row).
-const _verifiedBlue = Color(0xFF2563EB);
+// /// Verified badge on own profile (below location row).
+// const _verifiedBlue = Color(0xFF2563EB);
 const _gearBg = Color(0xFFECECEA);
 const _gearIcon = Color(0xFF5C5C5C);
-
-/// Square settings control; smaller than the Inbox [FilledButton] (natural height from padding).
 const _profileGearSize = 38.0;
 const _profileGearIconSize = 16.0;
 
@@ -311,7 +314,9 @@ class _ProfileBodyState extends State<_ProfileBody> {
   void _openChat(BuildContext context) {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
-    final id = MessagingService.conversationIdForPair(me.uid, profile.uid);
+    final myUid = context.read<ViewAsController>().effectiveProfileUid;
+    if (myUid.isEmpty) return;
+    final id = MessagingService.conversationIdForPair(myUid, profile.uid);
     final otherName = UserProfile.displayNameForUi(
       profile.publicDisplayLabel,
       accountEmail: widget.isAuthUserDoc && !widget.actingAsOrganization ? me.email : null,
@@ -326,6 +331,83 @@ class _ProfileBodyState extends State<_ProfileBody> {
     await FirebaseAuth.instance.signOut();
     if (!context.mounted) return;
     context.go('/sign-in');
+  }
+
+  Widget _buildAvatarStack(String headerName) {
+    return SizedBox(
+      width: 128,
+      height: 128,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: ClipOval(
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _Avatar(photoUrl: profile.photoUrl, name: headerName),
+                      if (_uploadingPhoto)
+                        ColoredBox(
+                          color: Colors.black26,
+                          child: Center(
+                            child: SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (widget.isAuthUserDoc && !widget.actingAsOrganization)
+            Positioned(
+              right: -2,
+              bottom: -2,
+              child: Material(
+                color: _editFabGreen,
+                shape: const CircleBorder(),
+                elevation: 2,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _uploadingPhoto ? null : () => _pickAndUploadProfilePhoto(),
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: Icon(
+                      Icons.add_a_photo,
+                      color: _uploadingPhoto ? Colors.white54 : Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -356,80 +438,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
           constraints: const BoxConstraints(maxWidth: 420),
           child: Column(
             children: [
-              SizedBox(
-                width: 128,
-                height: 128,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned.fill(
-                      child: Container(
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Color(0x14000000),
-                              blurRadius: 12,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: ClipOval(
-                            clipBehavior: Clip.antiAlias,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                _Avatar(photoUrl: profile.photoUrl, name: headerName),
-                                if (_uploadingPhoto)
-                                  ColoredBox(
-                                    color: Colors.black26,
-                                    child: Center(
-                                      child: SizedBox(
-                                        width: 28,
-                                        height: 28,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (widget.isAuthUserDoc && !widget.actingAsOrganization)
-                      Positioned(
-                        right: -2,
-                        bottom: -2,
-                        child: Material(
-                          color: _editFabGreen,
-                          shape: const CircleBorder(),
-                          elevation: 2,
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: _uploadingPhoto ? null : () => _pickAndUploadProfilePhoto(),
-                            child: SizedBox(
-                              width: 40,
-                              height: 40,
-                              child: Icon(
-                                Icons.add_a_photo,
-                                color: _uploadingPhoto ? Colors.white54 : Colors.white,
-                                size: 20,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              Center(child: _buildAvatarStack(headerName)),
               const SizedBox(height: 20),
               Consumer<ViewAsController>(
                 builder: (context, viewAs, _) {
@@ -459,39 +468,6 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 10),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.verified_rounded, color: _verifiedBlue, size: 22),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Verified',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: theme.colorScheme.onSurface,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => showDiditVerificationSheet(
-                    context,
-                    vendorData: profile.uid,
-                    subjectDisplayName: headerName,
-                  ),
-                  icon: const Icon(Icons.verified_user_outlined, size: 20),
-                  label: const Text('Verify'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
-                ),
-              ),
               if (profile.bio != null && profile.bio!.trim().isNotEmpty) ...[
                 const SizedBox(height: 24),
                 Align(
@@ -515,14 +491,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
                 ),
               ],
               const SizedBox(height: 20),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    child: _buildPrimaryProfileActions(context, theme),
-                  ),
-                ],
-              ),
+              _buildPrimaryProfileActions(context, theme),
               const SizedBox(height: 12),
               if (!widget.isAuthUserDoc && !(widget.fromProfileTab && widget.actingAsOrganization))
                 ProfileConnectionButton(
@@ -555,6 +524,47 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   onTap: () => context.push('/profile/staff'),
                 ),
               ],
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Posts',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: _slateSubtitle,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              StreamBuilder<List<KindredPost>>(
+                stream: context.read<PostService>().postsByAuthorId(profile.uid),
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final posts = snap.data ?? [];
+                  if (posts.isEmpty) {
+                    return Text(
+                      'No posts yet.',
+                      style: theme.textTheme.bodyMedium?.copyWith(color: _slateSubtitle),
+                    );
+                  }
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < posts.length; i++)
+                        Padding(
+                          padding: EdgeInsets.only(bottom: i < posts.length - 1 ? 12 : 0),
+                          child: _ProfileAuthorPostCard(post: posts[i]),
+                        ),
+                    ],
+                  );
+                },
+              ),
               if (widget.fromProfileTab) ...[
                 const SizedBox(height: 24),
                 TextButton.icon(
@@ -566,6 +576,106 @@ class _ProfileBodyState extends State<_ProfileBody> {
                       color: _slateSubtitle,
                       fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileAuthorPostCard extends StatelessWidget {
+  const _ProfileAuthorPostCard({required this.post});
+
+  final KindredPost post;
+
+  void _open(BuildContext context) {
+    if (post.kind == PostKind.communityEvent) {
+      context.push('/event/${post.id}');
+    } else {
+      context.push('/posts/${post.id}');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dateStr = DateFormat.yMMMd().format(post.createdAt);
+    final preview = post.body?.trim();
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _open(context),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [
+              BoxShadow(color: Color(0x12000000), blurRadius: 16, offset: Offset(0, 6)),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  PostKindIconBadge(kind: post.kind, compact: true),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      postKindListHeadline(post.kind),
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        letterSpacing: 0.9,
+                        fontWeight: FontWeight.w700,
+                        color: _slateSubtitle,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    dateStr,
+                    style: theme.textTheme.labelSmall?.copyWith(color: _slateSubtitle),
+                  ),
+                ],
+              ),
+              if (post.status == PostStatus.fulfilled) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'FULFILLED',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    letterSpacing: 0.8,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 10,
+                    color: _slateSubtitle,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                post.title,
+                style: GoogleFonts.lora(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                  color: const Color(0xFF141414),
+                ),
+              ),
+              if (preview != null && preview.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  preview.replaceAll(RegExp(r'\s+'), ' '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: _slateSubtitle,
+                    height: 1.4,
                   ),
                 ),
               ],

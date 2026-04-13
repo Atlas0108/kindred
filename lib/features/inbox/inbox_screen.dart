@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/view_as_controller.dart';
 import '../../core/models/direct_conversation.dart';
 import '../../core/services/messaging_service.dart';
 import 'chat_screen.dart';
@@ -19,8 +20,13 @@ class InboxScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final myUid = FirebaseAuth.instance.currentUser?.uid;
-    if (myUid == null) {
+    if (FirebaseAuth.instance.currentUser == null) {
+      return const Scaffold(body: Center(child: Text('Sign in to view messages.')));
+    }
+
+    final viewAs = context.watch<ViewAsController>();
+    final myUid = viewAs.effectiveProfileUid;
+    if (myUid.isEmpty) {
       return const Scaffold(body: Center(child: Text('Sign in to view messages.')));
     }
 
@@ -33,7 +39,7 @@ class InboxScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Inbox')),
       body: StreamBuilder<List<DirectConversation>>(
-        stream: svc.myConversationsStream(),
+        stream: svc.myConversationsStream(inboxUid: myUid),
         builder: (context, snap) {
           if (snap.hasError) {
             return Center(

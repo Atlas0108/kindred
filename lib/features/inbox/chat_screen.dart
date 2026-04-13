@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/view_as_controller.dart';
 import '../../core/models/chat_message.dart';
 import '../../core/models/direct_conversation.dart';
 import '../../core/services/messaging_service.dart';
@@ -42,20 +43,23 @@ class _ChatScreenState extends State<ChatScreen> {
   /// After [ensureDirectConversation] runs for profile/post → chat navigation.
   bool _conversationEnsured = false;
   StreamSubscription<DirectConversation?>? _conversationReadSub;
-  String? _readTrackingConversationId;
+  /// `${conversationId}|${effectiveProfileUid}` so read receipts follow View As.
+  String? _readWatchKey;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_readTrackingConversationId == widget.conversationId) return;
-    _readTrackingConversationId = widget.conversationId;
+    final viewAs = context.watch<ViewAsController>();
+    final myUid = viewAs.effectiveProfileUid;
+    final key = '${widget.conversationId}|$myUid';
+    if (_readWatchKey == key) return;
+    _readWatchKey = key;
     _conversationReadSub?.cancel();
     final svc = context.read<MessagingService>();
     _conversationReadSub = svc.conversationStream(widget.conversationId).listen((conv) {
       if (!mounted || conv == null) return;
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null || !conv.hasUnreadFor(uid)) return;
-      unawaited(svc.markConversationRead(widget.conversationId));
+      if (myUid.isEmpty || !conv.hasUnreadFor(myUid)) return;
+      unawaited(svc.markConversationRead(widget.conversationId, readerUid: myUid));
     });
   }
 
@@ -65,15 +69,18 @@ class _ChatScreenState extends State<ChatScreen> {
     if (extra == null) return;
     final me = FirebaseAuth.instance.currentUser;
     if (me == null || !mounted) throw StateError('Not signed in');
+    final myUid = context.read<ViewAsController>().effectiveProfileUid;
+    if (myUid.isEmpty) throw StateError('Not signed in');
     final msg = context.read<MessagingService>();
     final profileSvc = context.read<UserProfileService>();
-    final myProfile = await profileSvc.fetchProfile(me.uid);
+    final myProfile = await profileSvc.fetchProfile(myUid);
     if (!mounted) return;
     final myName = myProfile?.publicDisplayLabel.trim().isNotEmpty == true &&
             myProfile!.publicDisplayLabel != 'Neighbor'
         ? myProfile.publicDisplayLabel
         : (me.displayName?.trim().isNotEmpty == true ? me.displayName!.trim() : 'Neighbor');
     await msg.ensureDirectConversation(
+      myUserId: myUid,
       otherUserId: extra.otherUserId,
       otherDisplayName: extra.otherDisplayName,
       myDisplayName: myName,
@@ -111,9 +118,14 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       final msg = context.read<MessagingService>();
+      final senderUid = context.read<ViewAsController>().effectiveProfileUid;
       _text.clear();
       try {
-        await msg.sendMessage(widget.conversationId, body);
+        await msg.sendMessage(
+          widget.conversationId,
+          body,
+          senderId: senderUid.isEmpty ? null : senderUid,
+        );
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not send: $e')));
@@ -127,7 +139,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final myUid = FirebaseAuth.instance.currentUser?.uid;
+    final viewAs = context.watch<ViewAsController>();
+    final myUid = viewAs.effectiveProfileUid;
     final timeFmt = DateFormat.jm();
 
     return Scaffold(
@@ -140,7 +153,7 @@ class _ChatScreenState extends State<ChatScreen> {
           stream: context.read<MessagingService>().conversationStream(widget.conversationId),
           builder: (context, snap) {
             final conv = snap.data;
-            if (myUid == null) return const Text('Chat');
+            if (myUid.isEmpty) return const Text('Chat');
             if (conv != null) {
               final other = conv.otherParticipantId(myUid);
               final name = conv.displayNameForUser(other) ?? 'Neighbor';

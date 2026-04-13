@@ -1,7 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../app/view_as_controller.dart';
 import '../core/services/messaging_service.dart';
 import '../features/inbox/chat_screen.dart';
 
@@ -24,9 +26,10 @@ class MessagePosterButton extends StatelessWidget {
       );
       return;
     }
-    if (authorId.isEmpty || authorId == me.uid) return;
+    final myUid = context.read<ViewAsController>().effectiveProfileUid;
+    if (myUid.isEmpty || authorId.isEmpty || authorId == myUid) return;
 
-    final id = MessagingService.conversationIdForPair(me.uid, authorId);
+    final id = MessagingService.conversationIdForPair(myUid, authorId);
     context.push(
       '/chat/$id',
       extra: ChatScreenRouteExtra(otherUserId: authorId, otherDisplayName: authorName),
@@ -37,7 +40,9 @@ class MessagePosterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     if (authorId.isEmpty) return const SizedBox.shrink();
     final me = FirebaseAuth.instance.currentUser;
-    if (me != null && authorId == me.uid) return const SizedBox.shrink();
+    if (me == null) return const SizedBox.shrink();
+    final myUid = context.watch<ViewAsController>().effectiveProfileUid;
+    if (authorId == myUid) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;
 

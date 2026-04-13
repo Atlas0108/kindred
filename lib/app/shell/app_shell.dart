@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../view_as_controller.dart';
 import '../../core/services/connection_service.dart';
 import '../../core/services/messaging_service.dart';
 import '../../widgets/pending_connection_requests_badge.dart';
@@ -126,6 +127,7 @@ class _InboxNavIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final svc = context.read<MessagingService>();
+    final inboxUid = context.watch<ViewAsController>().effectiveProfileUid;
     return SizedBox(
       width: 36,
       height: 26,
@@ -142,7 +144,9 @@ class _InboxNavIcon extends StatelessWidget {
               top: -2,
               right: -4,
               child: StreamBuilder<int>(
-                stream: svc.unreadInboxCountStream(),
+                stream: svc.unreadInboxCountStream(
+                  inboxUid: inboxUid.isEmpty ? null : inboxUid,
+                ),
                 builder: (context, snap) {
                   final n = snap.data ?? 0;
                   if (n <= 0) return const SizedBox.shrink();

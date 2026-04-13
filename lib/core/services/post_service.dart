@@ -49,16 +49,21 @@ class PostService {
       if (user == null) {
         return Stream<List<KindredPost>>.value([]);
       }
-      return _posts
-          .where('authorId', isEqualTo: user.uid)
-          .limit(limit)
-          .snapshots()
-          .map((snap) {
-            final list = snap.docs.map(KindredPost.fromDoc).whereType<KindredPost>().toList();
-            list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            return list;
-          });
+      return postsByAuthorId(user.uid, limit: limit);
     });
+  }
+
+  /// Posts by [authorId], newest first (client-sorted; no composite index).
+  Stream<List<KindredPost>> postsByAuthorId(String authorId, {int limit = 50}) {
+    return _posts
+        .where('authorId', isEqualTo: authorId)
+        .limit(limit)
+        .snapshots()
+        .map((snap) {
+          final list = snap.docs.map(KindredPost.fromDoc).whereType<KindredPost>().toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        });
   }
 
   Stream<List<KindredPost>> postsInRadius({

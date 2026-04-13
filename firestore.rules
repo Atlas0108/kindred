@@ -12,6 +12,23 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
+    // Must match [UserProfileService.normalizeStaffEmail] (trim + lowercase on write).
+    function authEmailString() {
+      return signedIn() && request.auth.token.email is string
+        ? request.auth.token.email
+        : '';
+    }
+
+    function staffListedOnUserDoc(participantUserId) {
+      return signedIn()
+        && participantUserId is string
+        && exists(/databases/$(database)/documents/users/$(participantUserId))
+        && get(/databases/$(database)/documents/users/$(participantUserId)).data.keys().hasAny(['staffEmails'])
+        && get(/databases/$(database)/documents/users/$(participantUserId)).data.staffEmails is list
+        && authEmailString() != ''
+        && authEmailString() in get(/databases/$(database)/documents/users/$(participantUserId)).data.staffEmails;
+    }
+
     match /conversations/{convId} {
 
       function convPath() {
@@ -30,6 +47,17 @@ service cloud.firestore {
           && uid() in resource.data.participantIds;
       }
 
+      function canAccessConversationDoc() {
+        return signedIn()
+          && resource.data.participantIds is list
+          && resource.data.participantIds.size() == 2
+          && (
+            uid() in resource.data.participantIds
+            || staffListedOnUserDoc(resource.data.participantIds[0])
+            || staffListedOnUserDoc(resource.data.participantIds[1])
+          );
+      }
+
       function willBeConversationParticipant() {
         return signedIn()
           && request.resource.data.participantIds is list
@@ -40,30 +68,56 @@ service cloud.firestore {
           && request.resource.data.participantIds[0] != request.resource.data.participantIds[1];
       }
 
+      function willBeStaffDelegateConversation() {
+        return signedIn()
+          && request.resource.data.participantIds is list
+          && request.resource.data.participantIds.size() == 2
+          && request.resource.data.participantIds[0] is string
+          && request.resource.data.participantIds[1] is string
+          && request.resource.data.participantIds[0] != request.resource.data.participantIds[1]
+          && (
+            staffListedOnUserDoc(request.resource.data.participantIds[0])
+            || staffListedOnUserDoc(request.resource.data.participantIds[1])
+          );
+      }
+
       function participantIdsUnchanged() {
         return request.resource.data.participantIds == resource.data.participantIds;
       }
 
-      // Allow listening before the doc exists (client creates right after); otherwise members only.
+      // Allow listening before the doc exists (client creates right after); otherwise members or org staff.
       allow read: if signedIn()
         && (
           !conversationExists()
-          || isConversationParticipant()
+          || canAccessConversationDoc()
         );
 
-      allow create: if willBeConversationParticipant()
-        && request.resource.data.keys().hasAll([
-          'participantIds',
-          'participantNames',
-          'lastMessageText',
-          'lastMessageAt',
-          'updatedAt',
-          'createdAt',
-        ]);
+      allow create: if (
+          willBeConversationParticipant()
+          && request.resource.data.keys().hasAll([
+            'participantIds',
+            'participantNames',
+            'lastMessageText',
+            'lastMessageAt',
+            'updatedAt',
+            'createdAt',
+          ])
+        )
+        || (
+          willBeStaffDelegateConversation()
+          && request.resource.data.keys().hasAll([
+            'participantIds',
+            'participantNames',
+            'lastMessageText',
+            'lastMessageAt',
+            'updatedAt',
+            'createdAt',
+          ])
+        );
 
       allow update: if signedIn()
-        && isConversationParticipant()
-        && participantIdsUnchanged();
+        && participantIdsUnchanged()
+        && canAccessConversationDoc();
 
       allow delete: if false;
 
@@ -73,18 +127,30 @@ service cloud.firestore {
           return get(convPath()).data.participantIds;
         }
 
-        allow read: if signedIn()
-          && conversationExists()
-          && convParticipants() is list
-          && convParticipants().size() == 2
-          && uid() in convParticipants();
+        function canAccessConversationMessages() {
+          return signedIn()
+            && conversationExists()
+            && convParticipants() is list
+            && convParticipants().size() == 2
+            && (
+              uid() in convParticipants()
+              || staffListedOnUserDoc(convParticipants()[0])
+              || staffListedOnUserDoc(convParticipants()[1])
+            );
+        }
+
+        allow read: if canAccessConversationMessages();
 
         allow create: if signedIn()
           && conversationExists()
+          && convParticipants() is list
           && convParticipants().size() == 2
-          && uid() in convParticipants()
           && request.resource.data.keys().hasAll(['senderId', 'text', 'createdAt'])
-          && request.resource.data.senderId == uid()
+          && request.resource.data.senderId in convParticipants()
+          && (
+            request.resource.data.senderId == uid()
+            || staffListedOnUserDoc(request.resource.data.senderId)
+          )
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 8000;

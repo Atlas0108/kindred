@@ -13,6 +13,7 @@ import 'package:provider/provider.dart';
 import 'core/platform/is_apple_mobile_web.dart';
 import 'app/kindred_profile_gate_refresh.dart';
 import 'app/kindred_router.dart';
+import 'app/view_as_controller.dart';
 import 'app/kindred_scaffold_messenger.dart';
 import 'core/config/app_config.dart';
 import 'core/config/kindred_firebase_storage.dart';
@@ -139,6 +140,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
   late final EventService _eventService;
   late final MessagingService _messagingService;
   late final ConnectionService _connectionService;
+  late final ViewAsController _viewAsController;
   late final GoRouter _router;
 
   @override
@@ -155,6 +157,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
     _eventService = EventService(firestore, auth, storage);
     _messagingService = MessagingService(firestore, auth);
     _connectionService = ConnectionService(firestore, auth);
+    _viewAsController = ViewAsController(auth, _userProfileService);
 
     _router = createKindredRouter(profileGateRefresh: _profileGate);
     _profileGate.attach();
@@ -162,6 +165,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
 
   @override
   void dispose() {
+    _viewAsController.dispose();
     _profileGate.dispose();
     super.dispose();
   }
@@ -176,6 +180,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
         Provider<EventService>.value(value: _eventService),
         Provider<MessagingService>.value(value: _messagingService),
         Provider<ConnectionService>.value(value: _connectionService),
+        ChangeNotifierProvider<ViewAsController>.value(value: _viewAsController),
       ],
       child: _AuthProfileSync(
         child: MaterialApp.router(

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/services/connection_service.dart';
 import '../../core/services/messaging_service.dart';
 import '../../widgets/pending_connection_requests_badge.dart';
+import '../../widgets/view_as_identity_menu.dart';
 import '../responsive/breakpoints.dart';
 
 /// Responsive shell: bottom [NavigationBar] on narrow viewports, [NavigationRail] on wide.
@@ -32,23 +33,19 @@ class AppShell extends StatelessWidget {
     final wide = width >= kWideLayoutBreakpoint;
 
     if (wide) {
+      final railExpanded = width >= 1100;
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
-              extended: width >= 1100,
+              extended: railExpanded,
               selectedIndex: navigationShell.currentIndex,
               onDestinationSelected: navigationShell.goBranch,
               backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-              leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(
-                  'Kindred',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                ),
+              leading: ViewAsIdentityMenu(
+                placement: railExpanded
+                    ? ViewAsIdentityPlacement.railExtended
+                    : ViewAsIdentityPlacement.railCollapsed,
               ),
               destinations: const [
                 NavigationRailDestination(

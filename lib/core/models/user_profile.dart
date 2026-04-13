@@ -25,6 +25,7 @@ class UserProfile {
     this.requestsFulfilled = 0,
     this.eventsProgressNote,
     this.requestsProgressNote,
+    this.staffEmails = const [],
   });
 
   final String uid;
@@ -55,6 +56,8 @@ class UserProfile {
   final int requestsFulfilled;
   final String? eventsProgressNote;
   final String? requestsProgressNote;
+  /// Lowercase emails allowed to use this org/business account (nonprofit & business only).
+  final List<String> staffEmails;
 
   /// Shown in UI when [accountEmail] is the signed-in user’s email (hides legacy `displayName == email`).
   static String displayNameForUi(String storedName, {String? accountEmail}) {
@@ -105,6 +108,14 @@ class UserProfile {
     final ln = (data['lastName'] as String?)?.trim();
     final org = (data['organizationName'] as String?)?.trim();
     final biz = (data['businessName'] as String?)?.trim();
+    final staffRaw = data['staffEmails'];
+    final staffList = <String>[];
+    if (staffRaw is List) {
+      for (final e in staffRaw) {
+        final s = e?.toString().trim().toLowerCase() ?? '';
+        if (s.contains('@')) staffList.add(s);
+      }
+    }
     return UserProfile(
       uid: uid,
       displayName: (data['displayName'] as String?)?.trim().isNotEmpty == true
@@ -133,6 +144,7 @@ class UserProfile {
       requestsFulfilled: (data['requestsFulfilled'] as num?)?.toInt().clamp(0, 9999) ?? 0,
       eventsProgressNote: (data['eventsProgressNote'] as String?)?.trim(),
       requestsProgressNote: (data['requestsProgressNote'] as String?)?.trim(),
+      staffEmails: staffList,
     );
   }
 

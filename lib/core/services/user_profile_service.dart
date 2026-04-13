@@ -492,4 +492,70 @@ class UserProfileService {
     } on Object catch (_) {}
     invalidateProfileCache();
   }
+
+  /// Normalized lowercase email for [staffEmails] and queries.
+  static String normalizeStaffEmail(String raw) => raw.trim().toLowerCase();
+
+  /// Throws if the signed-in user’s email is not on [orgUid]’s [UserProfile.staffEmails].
+  Future<void> assertCurrentUserMayActAsOrganization(String orgUid) async {
+    final me = _auth.currentUser;
+    if (me == null) throw StateError('Not signed in');
+    final email = normalizeStaffEmail(me.email ?? '');
+    if (email.isEmpty) {
+      throw StateError('Your account needs an email to act as staff.');
+    }
+    final doc = await _userRef(orgUid).get().timeout(_fetchTimeout);
+    if (!doc.exists || doc.data() == null) {
+      throw StateError('Organization profile not found.');
+    }
+    final p = UserProfile.fromDoc(orgUid, doc.data()!);
+    if (p.accountType == UserAccountType.personal) {
+      throw StateError('Not an organization account.');
+    }
+    if (!p.staffEmails.contains(email)) {
+      throw StateError('Your email is not listed as staff for this account.');
+    }
+  }
+
+  /// Only [UserAccountType.nonprofit] and [UserAccountType.business] profiles may add staff.
+  Future<void> addStaffEmailToMyOrganization(String email) async {
+    final me = _auth.currentUser;
+    if (me == null) throw StateError('Not signed in');
+    final doc = await _userRef(me.uid).get().timeout(_fetchTimeout);
+    if (!doc.exists || doc.data() == null) throw StateError('Profile not found.');
+    final p = UserProfile.fromDoc(me.uid, doc.data()!);
+    if (p.accountType != UserAccountType.nonprofit && p.accountType != UserAccountType.business) {
+      throw StateError('Only nonprofit and business accounts can add staff.');
+    }
+    final normalized = normalizeStaffEmail(email);
+    if (!normalized.contains('@') || normalized.length < 5) {
+      throw ArgumentError('Enter a valid email address.');
+    }
+    await _userRef(me.uid).update({'staffEmails': FieldValue.arrayUnion([normalized])});
+    invalidateProfileCache();
+  }
+
+  Future<void> removeStaffEmailFromMyOrganization(String email) async {
+    final me = _auth.currentUser;
+    if (me == null) throw StateError('Not signed in');
+    final normalized = normalizeStaffEmail(email);
+    await _userRef(me.uid).update({'staffEmails': FieldValue.arrayRemove([normalized])});
+    invalidateProfileCache();
+  }
+
+  /// Live list of org/business accounts that list [email] in [staffEmails].
+  Stream<List<UserProfile>> staffOrganizationsStreamForEmail(String email) {
+    final normalized = normalizeStaffEmail(email);
+    if (normalized.isEmpty) {
+      return Stream.value(<UserProfile>[]);
+    }
+    return _firestore
+        .collection('users')
+        .where('staffEmails', arrayContains: normalized)
+        .limit(20)
+        .snapshots()
+        .map((snap) {
+      return snap.docs.map((d) => UserProfile.fromDoc(d.id, d.data())).toList();
+    });
+  }
 }

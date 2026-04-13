@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/kindred_scaffold_messenger.dart';
+import '../../app/view_as_controller.dart';
 import '../../core/config/dev_compose_prefills.dart';
 import '../../core/constants/default_geo.dart';
 import '../../core/kindred_trace.dart';
@@ -345,7 +346,14 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           );
         });
       } else {
-        await context.read<EventService>().createEvent(
+        final viewAs = context.read<ViewAsController>();
+        final eventSvc = context.read<EventService>();
+        final profileSvc = context.read<UserProfileService>();
+        final orgUid = viewAs.actingOrganizationUid;
+        if (orgUid != null) {
+          await profileSvc.assertCurrentUserMayActAsOrganization(orgUid);
+        }
+        await eventSvc.createEvent(
           title: title,
           description: description,
           organizerName: organizer,
@@ -356,6 +364,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
           imageBytes: imageBytes,
           imageContentType: _pickedImageMime,
           webImageBlob: webBlob,
+          postAsOrganizerUid: orgUid,
         );
         kindredTrace('CreateEventScreen._save createEvent returned');
         if (!mounted) {

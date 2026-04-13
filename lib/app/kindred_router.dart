@@ -18,6 +18,7 @@ import '../features/inbox/inbox_screen.dart';
 import '../features/post/post_hub_screen.dart';
 import '../features/profile/connections_screen.dart';
 import '../features/profile/profile_screen.dart';
+import '../features/profile/staff_screen.dart';
 import 'kindred_profile_gate_refresh.dart';
 import 'shell/app_shell.dart';
 
@@ -173,6 +174,11 @@ GoRouter createKindredRouter({required KindredProfileGateRefresh profileGateRefr
         parentNavigatorKey: rootNavigatorKey,
         path: '/connections',
         builder: (context, state) => const ConnectionsScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/profile/staff',
+        builder: (context, state) => const StaffScreen(),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

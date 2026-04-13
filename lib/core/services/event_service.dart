@@ -201,6 +201,8 @@ class EventService {
     Uint8List? imageBytes,
     String? imageContentType,
     Object? webImageBlob,
+    /// When staff creates on behalf of an org (must be verified by caller).
+    String? postAsOrganizerUid,
   }) async {
     kindredTrace('EventService.createEvent enter', title);
     final user = _auth.currentUser;
@@ -228,9 +230,12 @@ class EventService {
         contentType: mime,
       );
     }
+    final orgUid = postAsOrganizerUid?.trim();
+    final authorId =
+        orgUid != null && orgUid.isNotEmpty ? orgUid : user.uid;
     final post = KindredPost(
       id: id,
-      authorId: user.uid,
+      authorId: authorId,
       authorName: organizerName.trim().isNotEmpty ? organizerName.trim() : 'Neighbor',
       kind: PostKind.communityEvent,
       title: title,

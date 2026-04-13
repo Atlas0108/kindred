@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/view_as_controller.dart';
 import '../../core/models/user_account_type.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/services/connection_service.dart';
@@ -19,6 +20,7 @@ import 'profile_connection_button.dart';
 import 'set_home_area_sheet.dart';
 import '../../core/utils/blob_from_object_url.dart';
 import '../../widgets/pending_connection_requests_badge.dart';
+import '../../widgets/view_as_identity_menu.dart';
 
 /// Matches the Kindred home cream canvas.
 const _pageBackground = Color(0xFFF9F7F2);
@@ -76,9 +78,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return const Scaffold(body: Center(child: Text('Sign in to view your profile.')));
     }
 
-    final targetUid = widget.userId ?? user.uid;
+    final viewAs = context.watch<ViewAsController>();
+    final targetUid = widget.userId ?? viewAs.effectiveProfileUid;
     final svc = context.read<UserProfileService>();
     final fromShell = widget.userId == null;
+    final fromProfileTab = fromShell;
+    final actingAsOrganization = viewAs.isActingAsOrganization;
 
     Widget body = ColoredBox(
       color: _pageBackground,
@@ -91,8 +96,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             }
             final p = snap.data;
             if (p == null) {
-              final viewingSelf = targetUid == user.uid;
-              if (viewingSelf) {
+              final loadingOwnAuthProfile = targetUid == user.uid;
+              if (loadingOwnAuthProfile) {
                 final email = user.email?.trim();
                 if (email == null || email.isEmpty) {
                   return Center(
@@ -137,9 +142,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               );
             }
-            final selfUid = user.uid;
-            final viewingSelf = selfUid == p.uid;
-            return _ProfileBody(key: ValueKey(p.uid), profile: p, viewingSelf: viewingSelf);
+            final isAuthUserDoc = user.uid == p.uid;
+            return _ProfileBody(
+              key: ValueKey(p.uid),
+              profile: p,
+              isAuthUserDoc: isAuthUserDoc,
+              fromProfileTab: fromProfileTab,
+              actingAsOrganization: actingAsOrganization,
+            );
           },
         ),
       ),
@@ -157,10 +167,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _ProfileBody extends StatefulWidget {
-  const _ProfileBody({super.key, required this.profile, required this.viewingSelf});
+  const _ProfileBody({
+    super.key,
+    required this.profile,
+    required this.isAuthUserDoc,
+    required this.fromProfileTab,
+    required this.actingAsOrganization,
+  });
 
   final UserProfile profile;
-  final bool viewingSelf;
+  final bool isAuthUserDoc;
+  final bool fromProfileTab;
+  final bool actingAsOrganization;
 
   @override
   State<_ProfileBody> createState() => _ProfileBodyState();
@@ -180,7 +198,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (ctx) => _ProfileEditSheet(profile: widget.profile),
+      builder: (ctx) => _ProfileEditSheet(profile: profile),
     );
   }
 
@@ -230,13 +248,72 @@ class _ProfileBodyState extends State<_ProfileBody> {
     }
   }
 
+  Widget _buildPrimaryProfileActions(BuildContext context, ThemeData theme) {
+    if (widget.isAuthUserDoc && !widget.actingAsOrganization) {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: FilledButton(
+              onPressed: () => context.go('/inbox'),
+              style: FilledButton.styleFrom(
+                backgroundColor: _headerGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: const Text('Inbox'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: _profileGearSize,
+            height: _profileGearSize,
+            child: Material(
+              color: _gearBg,
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => _openEdit(context),
+                child: const Center(
+                  child: Icon(
+                    Icons.settings,
+                    color: _gearIcon,
+                    size: _profileGearIconSize,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    if (widget.fromProfileTab && widget.actingAsOrganization) {
+      return const SizedBox.shrink();
+    }
+    return FilledButton(
+      onPressed: () => _openChat(context),
+      style: FilledButton.styleFrom(
+        backgroundColor: _headerGreen,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+        ),
+      ),
+      child: const Text('Message'),
+    );
+  }
+
   void _openChat(BuildContext context) {
     final me = FirebaseAuth.instance.currentUser;
     if (me == null) return;
     final id = MessagingService.conversationIdForPair(me.uid, profile.uid);
     final otherName = UserProfile.displayNameForUi(
       profile.publicDisplayLabel,
-      accountEmail: widget.viewingSelf ? me.email : null,
+      accountEmail: widget.isAuthUserDoc && !widget.actingAsOrganization ? me.email : null,
     );
     context.push(
       '/chat/$id',
@@ -254,9 +331,10 @@ class _ProfileBodyState extends State<_ProfileBody> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final me = FirebaseAuth.instance.currentUser;
+    final showOwnEmailHint = widget.isAuthUserDoc && !widget.actingAsOrganization;
     final headerName = UserProfile.displayNameForUi(
       profile.publicDisplayLabel,
-      accountEmail: widget.viewingSelf ? me?.email : null,
+      accountEmail: showOwnEmailHint ? me?.email : null,
     );
     final sinceYear = profile.createdAt?.year;
     final city = profile.homeCityLabel?.trim();
@@ -325,7 +403,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
                         ),
                       ),
                     ),
-                    if (widget.viewingSelf)
+                    if (widget.isAuthUserDoc && !widget.actingAsOrganization)
                       Positioned(
                         right: -2,
                         bottom: -2,
@@ -352,15 +430,24 @@ class _ProfileBodyState extends State<_ProfileBody> {
                 ),
               ),
               const SizedBox(height: 20),
-              Text(
-                headerName,
-                textAlign: TextAlign.center,
-                style: serif(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: theme.colorScheme.onSurface,
-                  height: 1.15,
-                ),
+              Consumer<ViewAsController>(
+                builder: (context, viewAs, _) {
+                  if (widget.fromProfileTab && viewAs.staffOrganizations.isNotEmpty) {
+                    return const ViewAsIdentityMenu(
+                      placement: ViewAsIdentityPlacement.profileBelowAvatar,
+                    );
+                  }
+                  return Text(
+                    headerName,
+                    textAlign: TextAlign.center,
+                    style: serif(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                      height: 1.15,
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 8),
               Text(
@@ -415,69 +502,21 @@ class _ProfileBodyState extends State<_ProfileBody> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(
-                    child: widget.viewingSelf
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: FilledButton(
-                                  onPressed: () => context.go('/inbox'),
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: _headerGreen,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                  ),
-                                  child: const Text('Inbox'),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: _profileGearSize,
-                                height: _profileGearSize,
-                                child: Material(
-                                  color: _gearBg,
-                                  borderRadius: BorderRadius.circular(14),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(14),
-                                    onTap: () => _openEdit(context),
-                                    child: const Center(
-                                      child: Icon(
-                                        Icons.settings,
-                                        color: _gearIcon,
-                                        size: _profileGearIconSize,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          )
-                        : FilledButton(
-                            onPressed: () => _openChat(context),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _headerGreen,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: const Text('Message'),
-                          ),
+                    child: _buildPrimaryProfileActions(context, theme),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              if (!widget.viewingSelf)
+              if (!widget.isAuthUserDoc && !(widget.fromProfileTab && widget.actingAsOrganization))
                 ProfileConnectionButton(
                   otherUid: profile.uid,
                   otherDisplayName: profile.publicDisplayLabel,
                 ),
               const SizedBox(height: 28),
-              _ConnectionsMetricCard(userId: profile.uid, tappable: widget.viewingSelf),
+              _ConnectionsMetricCard(
+                userId: profile.uid,
+                tappable: widget.isAuthUserDoc && !widget.actingAsOrganization,
+              ),
               const SizedBox(height: 16),
               _ProfileMetricCard(
                 value: '${profile.eventsAttended}',
@@ -490,7 +529,16 @@ class _ProfileBodyState extends State<_ProfileBody> {
                 label: 'REQUESTS FULFILLED',
                 valueColor: _statBlue,
               ),
-              if (widget.viewingSelf) ...[
+              if (widget.isAuthUserDoc &&
+                  !widget.actingAsOrganization &&
+                  (profile.accountType == UserAccountType.nonprofit ||
+                      profile.accountType == UserAccountType.business)) ...[
+                const SizedBox(height: 16),
+                _StaffEntryCard(
+                  onTap: () => context.push('/profile/staff'),
+                ),
+              ],
+              if (widget.fromProfileTab) ...[
                 const SizedBox(height: 24),
                 TextButton.icon(
                   onPressed: () => _signOut(context),
@@ -504,6 +552,69 @@ class _ProfileBodyState extends State<_ProfileBody> {
                   ),
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StaffEntryCard extends StatelessWidget {
+  const _StaffEntryCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x14000000),
+                blurRadius: 10,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.groups_outlined, color: _headerGreen, size: 28),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'STAFF',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w700,
+                        color: _slateSubtitle,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Invite teammates by email',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: _slateSubtitle),
             ],
           ),
         ),

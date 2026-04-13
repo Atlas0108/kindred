@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/kindred_scaffold_messenger.dart';
+import '../../app/view_as_controller.dart';
 import '../../core/config/dev_compose_prefills.dart';
 import '../../core/constants/default_geo.dart';
 import '../../core/kindred_trace.dart';
@@ -269,7 +270,19 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
         });
       } else {
         kindredTrace('ComposePostScreen._publish calling PostService.createPost', '$kind');
-        final id = await context.read<PostService>().createPost(
+        final viewAs = context.read<ViewAsController>();
+        final postSvc = context.read<PostService>();
+        final profileSvc = context.read<UserProfileService>();
+        final orgUid = viewAs.actingOrganizationUid;
+        String? postAsUid;
+        String? postAsName;
+        if (orgUid != null) {
+          await profileSvc.assertCurrentUserMayActAsOrganization(orgUid);
+          final prof = await profileSvc.fetchProfile(orgUid);
+          postAsUid = orgUid;
+          postAsName = prof?.publicDisplayLabel ?? 'Organization';
+        }
+        final id = await postSvc.createPost(
               kind: kind,
               title: _title.text.trim(),
               body: _body.text.trim().isEmpty ? null : _body.text.trim(),
@@ -277,6 +290,8 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
               imageBytes: imageBytes,
               imageContentType: _pickedImageMime,
               webImageBlob: webBlob,
+              postAsAuthorUid: postAsUid,
+              postAsAuthorName: postAsName,
             );
         kindredTrace('ComposePostScreen._publish createPost returned', id);
         if (!mounted) return;

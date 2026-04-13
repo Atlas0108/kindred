@@ -177,13 +177,21 @@ class PostService {
     Uint8List? imageBytes,
     String? imageContentType,
     Object? webImageBlob,
+    /// When staff posts on behalf of an org (must be verified by caller).
+    String? postAsAuthorUid,
+    String? postAsAuthorName,
   }) async {
     kindredTrace('PostService.createPost enter', title);
     final user = _auth.currentUser;
     if (user == null) throw StateError('Not signed in');
     final id = _uuid.v4();
     kindredTrace('PostService.createPost doc id', id);
-    final authorName = await _authorDisplayName(user);
+    final orgUid = postAsAuthorUid?.trim();
+    final orgName = postAsAuthorName?.trim();
+    final useOrg =
+        orgUid != null && orgUid.isNotEmpty && orgName != null && orgName.isNotEmpty;
+    final authorId = useOrg ? orgUid : user.uid;
+    final authorName = useOrg ? orgName : await _authorDisplayName(user);
     String? imageUrl;
     final mime = (imageContentType != null && imageContentType.trim().isNotEmpty)
         ? imageContentType.trim()
@@ -204,7 +212,7 @@ class PostService {
     }
     final post = KindredPost(
       id: id,
-      authorId: user.uid,
+      authorId: authorId,
       authorName: authorName,
       kind: kind,
       title: title,

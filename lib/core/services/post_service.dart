@@ -40,6 +40,10 @@ class PostService {
         );
   }
 
+  /// Newest-first global list for admin moderation (same query as [homePostsFeed], higher cap).
+  Stream<List<KindredPost>> moderationPostsFeed({int limit = 500}) =>
+      homePostsFeed(limit: limit);
+
   /// Current user’s posts, newest first (sorted client-side so no composite index is required).
   ///
   /// Tied to [FirebaseAuth.authStateChanges] so we resubscribe after auth restores; using

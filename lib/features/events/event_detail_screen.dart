@@ -11,6 +11,7 @@ import '../../core/services/event_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/event_formatting.dart';
 import '../../core/utils/link_utils.dart';
+import '../../widgets/adaptive_post_cover_frame.dart';
 import '../../widgets/close_to_shell.dart';
 import '../../widgets/message_poster_button.dart';
 import '../../widgets/post_author_row.dart';
@@ -120,8 +121,7 @@ class _EventBodyState extends State<_EventBody> {
           if (hasImage) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
+              child: AdaptivePostCoverFrame(
                 child: Image.network(
                   imageUrl,
                   fit: BoxFit.cover,

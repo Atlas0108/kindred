@@ -18,6 +18,7 @@ import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
 import 'feed_browse_location_sheet.dart';
 import 'public_commons_invite_sheet.dart';
+import '../../widgets/adaptive_post_cover_frame.dart';
 import '../../widgets/post_author_row.dart';
 import '../../widgets/post_kind_icon_badge.dart';
 import '../../widgets/post_save_button.dart';
@@ -785,8 +786,7 @@ class _EventFeedCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
+              child: AdaptivePostCoverFrame(
                 child: Image.network(
                   url,
                   fit: BoxFit.cover,
@@ -1075,8 +1075,7 @@ class _PostFeedCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
+              child: AdaptivePostCoverFrame(
                 child: Image.network(
                   url,
                   fit: BoxFit.cover,

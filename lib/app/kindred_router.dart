@@ -13,6 +13,7 @@ import '../features/events/create_event_screen.dart';
 import '../features/events/event_detail_screen.dart';
 import '../features/help_desk/compose_post_screen.dart';
 import '../features/help_desk/post_detail_screen.dart';
+import '../features/admin/admin_post_review_screen.dart';
 import '../features/admin/admin_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/inbox/chat_screen.dart';
@@ -83,7 +84,8 @@ GoRouter createKindredRouter({
         authRedirect.clearIfReached(path);
       }
 
-      if (path == '/admin' && !isPublicCommonsAdminEmail(user.email)) {
+      if ((path == '/admin' || path.startsWith('/admin/')) &&
+          !isPublicCommonsAdminEmail(user.email)) {
         return '/home';
       }
 
@@ -188,6 +190,14 @@ GoRouter createKindredRouter({
         builder: (context, state) {
           final id = state.pathParameters['id']!;
           return PostDetailScreen(postId: id);
+        },
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: '/admin/review/post/:postId',
+        builder: (context, state) {
+          final id = state.pathParameters['postId']!;
+          return AdminPostReviewScreen(postId: id);
         },
       ),
       GoRoute(

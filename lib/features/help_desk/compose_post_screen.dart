@@ -21,6 +21,7 @@ import '../../core/services/location_search_service.dart';
 import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/blob_from_object_url.dart';
+import '../../widgets/adaptive_post_cover_frame.dart';
 import '../../widgets/city_search_field.dart';
 import '../../widgets/close_to_shell.dart';
 
@@ -387,8 +388,7 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
                   if (_showingCover) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: AspectRatio(
-                        aspectRatio: 4 / 3,
+                      child: AdaptivePostCoverFrame(
                         child: _hasPickedImage
                             ? (kIsWeb && _pickedXFile != null
                                 ? Image.network(

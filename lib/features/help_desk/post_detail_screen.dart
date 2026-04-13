@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
 import '../../core/services/post_service.dart';
+import '../../widgets/adaptive_post_cover_frame.dart';
 import '../../widgets/close_to_shell.dart';
 import '../../widgets/message_poster_button.dart';
 import '../../widgets/post_author_row.dart';
@@ -113,8 +114,7 @@ class _PostBodyState extends State<_PostBody> {
           if (hasImage) ...[
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
+              child: AdaptivePostCoverFrame(
                 child: Image.network(
                   imageUrl,
                   fit: BoxFit.cover,

@@ -48,10 +48,13 @@ GoRouter createKindredRouter({
       final path = state.uri.path;
 
       if (user == null) {
-        if (path != '/sign-in' && path != '/setup') {
+        if (path != '/sign-in' && path != '/sign-up' && path != '/setup') {
           authRedirect.captureFromUri(state.uri);
         }
-        return path == '/sign-in' ? null : '/sign-in';
+        if (path == '/sign-in' || path == '/sign-up' || path == '/setup') {
+          return null;
+        }
+        return '/sign-in';
       }
 
       // Old app used /map, /feed, /events; bookmarks or hash routes may still point there.
@@ -74,6 +77,7 @@ GoRouter createKindredRouter({
 
       if (path == '/profile-setup' ||
           path == '/sign-in' ||
+          path == '/sign-up' ||
           path == '/setup' ||
           path == '/session-loading') {
         final target = sanitizeRedirectForNavigation(authRedirect.consume()) ?? '/home';
@@ -102,7 +106,11 @@ GoRouter createKindredRouter({
       ),
       GoRoute(
         path: '/sign-in',
-        builder: (context, state) => const SignInScreen(),
+        builder: (context, state) => const SignInScreen(registering: false),
+      ),
+      GoRoute(
+        path: '/sign-up',
+        builder: (context, state) => const SignInScreen(registering: true),
       ),
       GoRoute(
         path: '/session-loading',

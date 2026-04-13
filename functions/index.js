@@ -213,19 +213,21 @@ exports.sendPublicCommonsInvite = onCall(
       'Someone';
 
     const baseUrl = appPublicUrl.value().replace(/\/$/, '');
-    const joinUrl = `${baseUrl}/sign-in`;
+    const signUpUrl = `${baseUrl}/sign-up`;
+    const signInUrl = `${baseUrl}/sign-in`;
 
     const subject = "You're invited to Public Commons";
     const text =
       `${inviterLabel} invited you to join Public Commons — a local place for help, events, and neighbors.\n\n` +
-      `Create an account or sign in here:\n${joinUrl}\n`;
+      `New here? Create an account:\n${signUpUrl}\n\n` +
+      `Already have an account? Sign in:\n${signInUrl}\n`;
     const html =
       `<p><strong>${escapeHtml(inviterLabel)}</strong> invited you to join ` +
       `<strong>Public Commons</strong> — a local place for help, events, and neighbors.</p>` +
-      `<p><a href="${escapeHtml(joinUrl)}">Join Public Commons</a></p>` +
-      `<p style="color:#666;font-size:14px;">If the link doesn’t work, copy and paste:<br/>${escapeHtml(
-        joinUrl,
-      )}</p>`;
+      `<p><a href="${escapeHtml(signUpUrl)}">Create an account</a> · ` +
+      `<a href="${escapeHtml(signInUrl)}">Sign in</a></p>` +
+      `<p style="color:#666;font-size:14px;">Copy and paste if needed:<br/>` +
+      `${escapeHtml(signUpUrl)}<br/>${escapeHtml(signInUrl)}</p>`;
 
     const transporter = buildSmtpTransporter();
     try {

@@ -45,7 +45,10 @@ String _formatAuthError(FirebaseAuthException e) {
 }
 
 class SignInScreen extends StatefulWidget {
-  const SignInScreen({super.key});
+  const SignInScreen({super.key, this.registering = false});
+
+  /// `false` for `/sign-in`, `true` for `/sign-up`.
+  final bool registering;
 
   @override
   State<SignInScreen> createState() => _SignInScreenState();
@@ -54,7 +57,7 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
-  bool _register = false;
+  late bool _register;
   bool _busy = false;
   String? _error;
   UserAccountType _accountType = UserAccountType.personal;
@@ -62,7 +65,22 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   void initState() {
     super.initState();
+    _register = widget.registering;
     _applyDevPrefills();
+  }
+
+  @override
+  void didUpdateWidget(covariant SignInScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.registering != widget.registering) {
+      setState(() {
+        _register = widget.registering;
+        _error = null;
+        if (!widget.registering) {
+          _accountType = UserAccountType.personal;
+        }
+      });
+    }
   }
 
   void _applyDevPrefills() {
@@ -312,15 +330,17 @@ class _SignInScreenState extends State<SignInScreen> {
                     TextButton(
                       onPressed: _busy
                           ? null
-                          : () => setState(() {
-                              _register = !_register;
-                              _error = null;
-                              _accountType = UserAccountType.personal;
-                            }),
+                          : () {
+                              if (_register) {
+                                context.go('/sign-in');
+                              } else {
+                                context.go('/sign-up');
+                              }
+                            },
                       child: Text(
                         _register
                             ? 'Have an account? Sign in'
-                            : 'Need an account? Register',
+                            : 'Need an account? Create one',
                       ),
                     ),
                   ],

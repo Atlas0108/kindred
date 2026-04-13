@@ -1,6 +1,9 @@
 # Local secrets (use `.env.example` as a template)
 .env
 
+# Firebase CLI function params (MAIL_FROM, APP_PUBLIC_URL, etc.)
+functions/.env.*
+
 # Firebase service account JSON (copy to secrets/firebase-adminsdk.json — never commit)
 /secrets/
 
@@ -52,3 +55,4 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+sendgrid.env

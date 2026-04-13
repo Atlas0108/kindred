@@ -19,6 +19,7 @@ import '../features/post/post_hub_screen.dart';
 import '../features/profile/connections_screen.dart';
 import '../features/profile/profile_screen.dart';
 import '../features/profile/staff_screen.dart';
+import 'kindred_auth_redirect.dart';
 import 'kindred_profile_gate_refresh.dart';
 import 'shell/app_shell.dart';
 import 'shell/kindred_shell_tab_container.dart';
@@ -27,7 +28,10 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
 );
 
-GoRouter createKindredRouter({required KindredProfileGateRefresh profileGateRefresh}) {
+GoRouter createKindredRouter({
+  required KindredProfileGateRefresh profileGateRefresh,
+  required KindredAuthRedirect authRedirect,
+}) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
@@ -41,6 +45,9 @@ GoRouter createKindredRouter({required KindredProfileGateRefresh profileGateRefr
       final path = state.uri.path;
 
       if (user == null) {
+        if (path != '/sign-in' && path != '/setup') {
+          authRedirect.captureFromUri(state.uri);
+        }
         return path == '/sign-in' ? null : '/sign-in';
       }
 
@@ -66,7 +73,12 @@ GoRouter createKindredRouter({required KindredProfileGateRefresh profileGateRefr
           path == '/sign-in' ||
           path == '/setup' ||
           path == '/session-loading') {
-        return '/home';
+        final target = sanitizeRedirectForNavigation(authRedirect.consume()) ?? '/home';
+        return target;
+      }
+
+      if (complete == true) {
+        authRedirect.clearIfReached(path);
       }
 
       return null;

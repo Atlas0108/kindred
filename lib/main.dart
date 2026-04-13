@@ -11,6 +11,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
 import 'core/platform/is_apple_mobile_web.dart';
+import 'app/kindred_auth_redirect.dart';
 import 'app/kindred_profile_gate_refresh.dart';
 import 'app/kindred_router.dart';
 import 'app/view_as_controller.dart';
@@ -31,6 +32,9 @@ import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Without this, `context.push('/posts/…')` keeps the browser URL on the shell
+  // (e.g. /home) so shared links never include the post path. Web only.
+  GoRouter.optionURLReflectsImperativeAPIs = true;
   kindredTrace('main', 'WidgetsFlutterBinding done');
   await preloadKindredGoogleFonts();
   try {
@@ -143,6 +147,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
   late final MessagingService _messagingService;
   late final ConnectionService _connectionService;
   late final ViewAsController _viewAsController;
+  late final KindredAuthRedirect _authRedirect;
   late final GoRouter _router;
 
   @override
@@ -152,6 +157,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
     final auth = FirebaseAuth.instance;
     final storage = createKindredFirebaseStorage();
 
+    _authRedirect = KindredAuthRedirect();
     _profileGate = KindredProfileGateRefresh(auth, firestore);
     _userProfileService = UserProfileService(firestore, auth, storage);
     _postService = PostService(firestore, auth, storage);
@@ -161,7 +167,10 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
     _connectionService = ConnectionService(firestore, auth);
     _viewAsController = ViewAsController(auth, _userProfileService);
 
-    _router = createKindredRouter(profileGateRefresh: _profileGate);
+    _router = createKindredRouter(
+      profileGateRefresh: _profileGate,
+      authRedirect: _authRedirect,
+    );
     _profileGate.attach();
   }
 
@@ -169,6 +178,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
   void dispose() {
     _viewAsController.dispose();
     _profileGate.dispose();
+    _authRedirect.dispose();
     super.dispose();
   }
 
@@ -183,6 +193,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
         Provider<MessagingService>.value(value: _messagingService),
         Provider<ConnectionService>.value(value: _connectionService),
         ChangeNotifierProvider<ViewAsController>.value(value: _viewAsController),
+        ChangeNotifierProvider<KindredAuthRedirect>.value(value: _authRedirect),
       ],
       child: _AuthProfileSync(
         child: MaterialApp.router(

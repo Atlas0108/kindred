@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/kindred_auth_redirect.dart';
 import '../../app/view_as_controller.dart';
 import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
@@ -409,6 +410,7 @@ class _ProfileBodyState extends State<_ProfileBody> {
   }
 
   Future<void> _signOut(BuildContext context) async {
+    context.read<KindredAuthRedirect>().clear();
     await FirebaseAuth.instance.signOut();
     if (!context.mounted) return;
     context.go('/sign-in');

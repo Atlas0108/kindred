@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../app/kindred_auth_redirect.dart';
 import '../../core/kindred_trace.dart';
 import '../../core/models/user_account_type.dart';
 import '../../core/services/user_profile_service.dart';
@@ -16,22 +17,24 @@ String _formatAuthError(FirebaseAuthException e) {
   final hint = switch (code) {
     'operation-not-allowed' =>
       'Enable Email/Password: Firebase Console → Authentication → Sign-in method.',
-    'invalid-credential' || 'wrong-password' || 'user-not-found' =>
-      'Check email and password, or register a new account.',
+    'invalid-credential' ||
+    'wrong-password' ||
+    'user-not-found' => 'Check email and password, or register a new account.',
     'invalid-email' => 'That email address looks invalid.',
-    'email-already-in-use' => 'An account already exists for this email — try Sign in.',
+    'email-already-in-use' =>
+      'An account already exists for this email — try Sign in.',
     'weak-password' => 'Password is too weak (use at least 6 characters).',
     'too-many-requests' => 'Too many attempts. Wait a bit and try again.',
     'network-request-failed' => 'Network error — check your connection.',
     'configuration-not-found' =>
       'Auth isn’t fully enabled for this Firebase project, or the Web API key is wrong.\n'
-      '• Firebase Console → Build → Authentication → open it once (Get started).\n'
-      '• Sign-in method → enable Email/Password.\n'
-      '• Google Cloud Console → APIs & Library → enable “Identity Toolkit API”.\n'
-      '• Cloud Console → APIs & Services → Credentials → your **browser** API key '
-      '(same as firebase_options.dart): under API restrictions, allow Identity Toolkit API '
-      '(or use “Don’t restrict” for a prototype). If the key is restricted to Maps only, '
-      'sign-in will fail.',
+          '• Firebase Console → Build → Authentication → open it once (Get started).\n'
+          '• Sign-in method → enable Email/Password.\n'
+          '• Google Cloud Console → APIs & Library → enable “Identity Toolkit API”.\n'
+          '• Cloud Console → APIs & Services → Credentials → your **browser** API key '
+          '(same as firebase_options.dart): under API restrictions, allow Identity Toolkit API '
+          '(or use “Don’t restrict” for a prototype). If the key is restricted to Maps only, '
+          'sign-in will fail.',
     _ => null,
   };
   final core = msg.isNotEmpty ? '$code: $msg' : code;
@@ -119,7 +122,10 @@ class _SignInScreenState extends State<SignInScreen> {
       kindredTrace('SignIn._submit currentUser', u.uid);
 
       if (_register) {
-        kindredTrace('SignIn._submit ensureProfile (register)', _accountType.firestoreValue);
+        kindredTrace(
+          'SignIn._submit ensureProfile (register)',
+          _accountType.firestoreValue,
+        );
         try {
           await userProfileService.ensureProfile(
             displayName: 'Neighbor',
@@ -148,8 +154,13 @@ class _SignInScreenState extends State<SignInScreen> {
       }
 
       didRequestNavigation = true;
-      kindredTrace('SignIn._submit context.go(/home)');
-      if (mounted) context.go('/home');
+      final afterAuth =
+          sanitizeRedirectForNavigation(
+            context.read<KindredAuthRedirect>().pending,
+          ) ??
+          '/home';
+      kindredTrace('SignIn._submit context.go($afterAuth)');
+      if (mounted) context.go(afterAuth);
     } on FirebaseAuthException catch (e) {
       kindredTrace('SignIn._submit FirebaseAuthException', e.code);
       setState(() => _error = _formatAuthError(e));
@@ -161,7 +172,10 @@ class _SignInScreenState extends State<SignInScreen> {
       }());
       setState(() => _error = '$e');
     } finally {
-      kindredTrace('SignIn._submit finally', 'didRequestNavigation=$didRequestNavigation');
+      kindredTrace(
+        'SignIn._submit finally',
+        'didRequestNavigation=$didRequestNavigation',
+      );
       if (mounted && !didRequestNavigation) {
         setState(() => _busy = false);
       }
@@ -217,7 +231,9 @@ class _SignInScreenState extends State<SignInScreen> {
                       const SizedBox(height: 20),
                       Text(
                         'Account type',
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -237,10 +253,15 @@ class _SignInScreenState extends State<SignInScreen> {
                                 : theme.colorScheme.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(12),
                             child: InkWell(
-                              onTap: _busy ? null : () => setState(() => _accountType = t),
+                              onTap: _busy
+                                  ? null
+                                  : () => setState(() => _accountType = t),
                               borderRadius: BorderRadius.circular(12),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                  horizontal: 16,
+                                ),
                                 child: Row(
                                   children: [
                                     Icon(
@@ -271,7 +292,10 @@ class _SignInScreenState extends State<SignInScreen> {
                       const SizedBox(height: 12),
                       SelectableText(
                         _error!,
-                        style: TextStyle(color: theme.colorScheme.error, height: 1.35),
+                        style: TextStyle(
+                          color: theme.colorScheme.error,
+                          height: 1.35,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 24),
@@ -289,11 +313,15 @@ class _SignInScreenState extends State<SignInScreen> {
                       onPressed: _busy
                           ? null
                           : () => setState(() {
-                                _register = !_register;
-                                _error = null;
-                                _accountType = UserAccountType.personal;
-                              }),
-                      child: Text(_register ? 'Have an account? Sign in' : 'Need an account? Register'),
+                              _register = !_register;
+                              _error = null;
+                              _accountType = UserAccountType.personal;
+                            }),
+                      child: Text(
+                        _register
+                            ? 'Have an account? Sign in'
+                            : 'Need an account? Register',
+                      ),
                     ),
                   ],
                 ),

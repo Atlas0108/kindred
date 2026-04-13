@@ -27,7 +27,7 @@ class PostDetailScreen extends StatelessWidget {
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () => kindredPopOrGoHome(context),
         ),
         actions: const [CloseToShellIconButton()],
         title: const Text('Post'),

@@ -19,6 +19,7 @@ import '../inbox/chat_screen.dart';
 import 'profile_connection_button.dart';
 import 'set_home_area_sheet.dart';
 import '../../core/utils/blob_from_object_url.dart';
+import '../../widgets/didit_verification_sheet.dart';
 import '../../widgets/pending_connection_requests_badge.dart';
 import '../../widgets/view_as_identity_menu.dart';
 
@@ -474,6 +475,22 @@ class _ProfileBodyState extends State<_ProfileBody> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => showDiditVerificationSheet(
+                    context,
+                    vendorData: profile.uid,
+                    subjectDisplayName: headerName,
+                  ),
+                  icon: const Icon(Icons.verified_user_outlined, size: 20),
+                  label: const Text('Verify'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                ),
               ),
               if (profile.bio != null && profile.bio!.trim().isNotEmpty) ...[
                 const SizedBox(height: 24),

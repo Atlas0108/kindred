@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/auth/public_commons_admin.dart';
 import '../core/config/app_config.dart' show isFirebaseConfigured;
 import '../core/models/post_kind.dart';
 import '../features/auth/profile_setup_screen.dart';
@@ -12,6 +13,7 @@ import '../features/events/create_event_screen.dart';
 import '../features/events/event_detail_screen.dart';
 import '../features/help_desk/compose_post_screen.dart';
 import '../features/help_desk/post_detail_screen.dart';
+import '../features/admin/admin_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/inbox/chat_screen.dart';
 import '../features/inbox/inbox_screen.dart';
@@ -81,6 +83,10 @@ GoRouter createKindredRouter({
         authRedirect.clearIfReached(path);
       }
 
+      if (path == '/admin' && !isPublicCommonsAdminEmail(user.email)) {
+        return '/home';
+      }
+
       return null;
     },
     routes: [
@@ -139,6 +145,14 @@ GoRouter createKindredRouter({
               GoRoute(
                 path: '/profile',
                 builder: (context, state) => const ProfileScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/admin',
+                builder: (context, state) => const AdminScreen(),
               ),
             ],
           ),

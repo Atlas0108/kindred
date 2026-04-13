@@ -1,6 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
+  /// Onboarding / auth wordmark (Playfair + forest green).
+  static const Color publicCommonsForest = Color(0xFF1B3022);
+
+  /// Warm cream used for onboarding and auth screens.
+  static const Color publicCommonsCream = Color(0xFFFDF9F3);
+
+  static TextStyle publicCommonsWordmark() {
+    return GoogleFonts.playfairDisplay(
+      fontSize: 34,
+      fontWeight: FontWeight.w700,
+      color: publicCommonsForest,
+      height: 1.12,
+    );
+  }
+
   static ThemeData light() {
     const seed = Color(0xFF2E7D5A);
     return ThemeData(

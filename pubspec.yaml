@@ -54,6 +54,7 @@ dependencies:
   http: ^1.6.0
   didit_sdk: ^3.4.3
   cloud_functions: ^6.1.0
+  introduction_screen: ^4.0.0
 
 dev_dependencies:
   flutter_test:

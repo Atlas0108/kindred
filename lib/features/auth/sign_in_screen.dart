@@ -10,6 +10,7 @@ import '../../app/kindred_auth_redirect.dart';
 import '../../core/kindred_trace.dart';
 import '../../core/models/user_account_type.dart';
 import '../../core/services/user_profile_service.dart';
+import '../../theme/app_theme.dart';
 
 String _formatAuthError(FirebaseAuthException e) {
   final code = e.code;
@@ -212,6 +213,7 @@ class _SignInScreenState extends State<SignInScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      backgroundColor: AppTheme.publicCommonsCream,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -223,7 +225,11 @@ class _SignInScreenState extends State<SignInScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Public Commons', style: theme.textTheme.headlineMedium),
+                    Text(
+                      'Public Commons',
+                      style: AppTheme.publicCommonsWordmark(),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 8),
                     Text(
                       _register ? 'Create an account' : 'Sign in',

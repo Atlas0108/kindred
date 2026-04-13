@@ -9,6 +9,7 @@ import '../features/auth/profile_setup_screen.dart';
 import '../features/auth/session_loading_screen.dart';
 import '../features/auth/setup_screen.dart';
 import '../features/auth/sign_in_screen.dart';
+import '../features/onboarding/onboarding_screen.dart';
 import '../features/events/create_event_screen.dart';
 import '../features/events/event_detail_screen.dart';
 import '../features/help_desk/compose_post_screen.dart';
@@ -41,17 +42,24 @@ GoRouter createKindredRouter({
     refreshListenable: profileGateRefresh,
     redirect: (context, state) {
       if (!isFirebaseConfigured) {
-        return state.uri.path == '/setup' ? null : '/setup';
+        final p = state.uri.path;
+        return (p == '/setup' || p == '/onboarding') ? null : '/setup';
       }
 
       final user = FirebaseAuth.instance.currentUser;
       final path = state.uri.path;
 
       if (user == null) {
-        if (path != '/sign-in' && path != '/sign-up' && path != '/setup') {
+        if (path != '/sign-in' &&
+            path != '/sign-up' &&
+            path != '/setup' &&
+            path != '/onboarding') {
           authRedirect.captureFromUri(state.uri);
         }
-        if (path == '/sign-in' || path == '/sign-up' || path == '/setup') {
+        if (path == '/sign-in' ||
+            path == '/sign-up' ||
+            path == '/setup' ||
+            path == '/onboarding') {
           return null;
         }
         return '/sign-in';
@@ -60,6 +68,10 @@ GoRouter createKindredRouter({
       // Old app used /map, /feed, /events; bookmarks or hash routes may still point there.
       if (path == '/map' || path == '/feed' || path == '/events') {
         return '/home';
+      }
+
+      if (path == '/onboarding') {
+        return null;
       }
 
       final complete = profileGateRefresh.setupComplete;
@@ -111,6 +123,10 @@ GoRouter createKindredRouter({
       GoRoute(
         path: '/sign-up',
         builder: (context, state) => const SignInScreen(registering: true),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(
         path: '/session-loading',

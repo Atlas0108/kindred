@@ -36,8 +36,9 @@ Future<void> main() async {
   // (e.g. /home) so shared links never include the post path. Web only.
   GoRouter.optionURLReflectsImperativeAPIs = true;
   kindredTrace('main', 'WidgetsFlutterBinding done');
-  await preloadKindredGoogleFonts();
+  runApp(const KindredBootstrapSplash());
   try {
+    await preloadKindredGoogleFonts();
     await dotenv.load(fileName: '.env', isOptional: true);
     kindredTrace('main', 'dotenv loaded');
     if (isFirebaseConfigured) {
@@ -99,7 +100,9 @@ Future<void> main() async {
     kindredTrace('main', 'Bootstrap failed: $e\n$st');
     runApp(
       MaterialApp(
+        theme: AppTheme.light(),
         home: Scaffold(
+          backgroundColor: AppTheme.publicCommonsCream,
           body: Center(
             child: Padding(
               padding: const EdgeInsets.all(24),
@@ -107,6 +110,49 @@ Future<void> main() async {
                 'Could not start Public Commons.\n\n$e',
                 textAlign: TextAlign.center,
               ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Shown immediately while [main] awaits Firebase, fonts, and env — avoids a blank
+/// frame (especially on mobile/desktop). Web also uses a matching `index.html` layer.
+class KindredBootstrapSplash extends StatelessWidget {
+  const KindredBootstrapSplash({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light(),
+      home: Scaffold(
+        backgroundColor: AppTheme.publicCommonsCream,
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 3,
+                    color: AppTheme.publicCommonsForest,
+                    semanticsLabel: 'Loading',
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Public Commons',
+                  style: AppTheme.publicCommonsWordmark(),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
         ),

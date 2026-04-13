@@ -21,6 +21,7 @@ import '../features/profile/profile_screen.dart';
 import '../features/profile/staff_screen.dart';
 import 'kindred_profile_gate_refresh.dart';
 import 'shell/app_shell.dart';
+import 'shell/kindred_shell_tab_container.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>(
   debugLabel: 'root',
@@ -91,7 +92,8 @@ GoRouter createKindredRouter({required KindredProfileGateRefresh profileGateRefr
         path: '/profile-setup',
         builder: (context, state) => const ProfileSetupScreen(),
       ),
-      StatefulShellRoute.indexedStack(
+      StatefulShellRoute(
+        navigatorContainerBuilder: kindredShellTabContainerBuilder,
         builder: (context, state, navigationShell) {
           return AppShell(navigationShell: navigationShell);
         },

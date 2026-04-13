@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/user_account_type.dart';
 import '../../core/models/user_profile.dart';
 import '../../core/services/user_profile_service.dart';
+import '../../widgets/close_to_shell.dart';
 
 const _headerGreen = Color(0xFF2E7D5A);
 const _pageBackground = Color(0xFFF9F7F2);
@@ -27,6 +28,7 @@ class StaffScreen extends StatelessWidget {
         backgroundColor: _pageBackground,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
+        actions: const [CloseToShellIconButton()],
       ),
       body: StreamBuilder<UserProfile?>(
         stream: svc.profileStream(user.uid),

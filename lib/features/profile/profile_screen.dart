@@ -24,6 +24,7 @@ import 'profile_connection_button.dart';
 import 'set_home_area_sheet.dart';
 import '../../core/utils/blob_from_object_url.dart';
 // import '../../widgets/didit_verification_sheet.dart';
+import '../../widgets/close_to_shell.dart';
 import '../../widgets/pending_connection_requests_badge.dart';
 import '../../widgets/post_kind_icon_badge.dart';
 import '../../widgets/view_as_identity_menu.dart';
@@ -164,7 +165,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        actions: const [CloseToShellIconButton()],
+      ),
       body: body,
     );
   }
@@ -188,10 +192,84 @@ class _ProfileBody extends StatefulWidget {
   State<_ProfileBody> createState() => _ProfileBodyState();
 }
 
+/// Pins the profile name / View-as row + subtitle under the avatar while the rest scrolls.
+class _ProfileIdentityPinnedDelegate extends SliverPersistentHeaderDelegate {
+  _ProfileIdentityPinnedDelegate({
+    required this.backgroundColor,
+    required this.padding,
+    required this.child,
+    required this.showShadow,
+  });
+
+  final Color backgroundColor;
+  final EdgeInsetsGeometry padding;
+  final Widget child;
+  final bool showShadow;
+
+  static const double _extent = 118;
+
+  @override
+  double get minExtent => _extent;
+
+  @override
+  double get maxExtent => _extent;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        boxShadow: showShadow
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                  spreadRadius: 0,
+                ),
+              ]
+            : null,
+      ),
+      child: SizedBox(
+        height: maxExtent,
+        width: double.infinity,
+        child: Padding(
+          padding: padding,
+          child: Align(
+            alignment: Alignment.center,
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  bool shouldRebuild(covariant _ProfileIdentityPinnedDelegate oldDelegate) {
+    return oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.padding != padding ||
+        oldDelegate.child != child ||
+        oldDelegate.showShadow != showShadow;
+  }
+}
+
 class _ProfileBodyState extends State<_ProfileBody> {
   bool _uploadingPhoto = false;
+  /// True once the user has scrolled past the avatar so the identity header is pinned.
+  bool _identityHeaderStuck = false;
 
   UserProfile get profile => widget.profile;
+
+  /// Matches [SliverPadding] top (20) + avatar (128) + gap before pinned header (20).
+  static const double _identityStickScrollThreshold = 20 + 128 + 20;
+
+  @override
+  void didUpdateWidget(covariant _ProfileBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile.uid != widget.profile.uid) {
+      _identityHeaderStuck = false;
+    }
+  }
 
   void _openEdit(BuildContext context) {
     showModalBottomSheet<void>(
@@ -297,17 +375,20 @@ class _ProfileBodyState extends State<_ProfileBody> {
     if (widget.fromProfileTab && widget.actingAsOrganization) {
       return const SizedBox.shrink();
     }
-    return FilledButton(
-      onPressed: () => _openChat(context),
-      style: FilledButton.styleFrom(
-        backgroundColor: _headerGreen,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+    return SizedBox(
+      width: double.infinity,
+      child: FilledButton(
+        onPressed: () => _openChat(context),
+        style: FilledButton.styleFrom(
+          backgroundColor: _headerGreen,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
+        child: const Text('Message'),
       ),
-      child: const Text('Message'),
     );
   }
 
@@ -431,157 +512,211 @@ class _ProfileBodyState extends State<_ProfileBody> {
 
     final serif = GoogleFonts.playfairDisplay;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Column(
-            children: [
-              Center(child: _buildAvatarStack(headerName)),
-              const SizedBox(height: 20),
-              Consumer<ViewAsController>(
-                builder: (context, viewAs, _) {
-                  if (widget.fromProfileTab && viewAs.staffOrganizations.isNotEmpty) {
-                    return const ViewAsIdentityMenu(
-                      placement: ViewAsIdentityPlacement.profileBelowAvatar,
-                    );
-                  }
-                  return Text(
-                    headerName,
-                    textAlign: TextAlign.center,
-                    style: serif(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: theme.colorScheme.onSurface,
-                      height: 1.15,
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
+    final identityBlock = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Consumer<ViewAsController>(
+            builder: (context, viewAs, _) {
+              if (widget.fromProfileTab && viewAs.staffOrganizations.isNotEmpty) {
+                return const ViewAsIdentityMenu(
+                  placement: ViewAsIdentityPlacement.profileBelowAvatar,
+                );
+              }
+              return Text(
+                headerName,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: _slateSubtitle,
-                  fontWeight: FontWeight.w500,
+                style: serif(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurface,
+                  height: 1.15,
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: _slateSubtitle,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (ScrollNotification n) {
+        if (n.metrics.axis != Axis.vertical) return false;
+        final px = n.metrics.pixels;
+        final stuck = px >= _identityStickScrollThreshold;
+        if (stuck != _identityHeaderStuck) {
+          setState(() => _identityHeaderStuck = stuck);
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+            sliver: SliverToBoxAdapter(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Center(child: _buildAvatarStack(headerName)),
                 ),
               ),
-              if (profile.bio != null && profile.bio!.trim().isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Bio',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: _slateSubtitle,
-                      letterSpacing: 0.6,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SelectableText(
-                  profile.bio!.trim(),
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    height: 1.5,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 20),
-              _buildPrimaryProfileActions(context, theme),
-              const SizedBox(height: 12),
-              if (!widget.isAuthUserDoc && !(widget.fromProfileTab && widget.actingAsOrganization))
-                ProfileConnectionButton(
-                  otherUid: profile.uid,
-                  otherDisplayName: profile.publicDisplayLabel,
-                ),
-              const SizedBox(height: 28),
-              _ConnectionsMetricCard(
-                userId: profile.uid,
-                tappable: widget.isAuthUserDoc && !widget.actingAsOrganization,
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: const SizedBox(height: 20),
               ),
-              const SizedBox(height: 16),
-              _ProfileMetricCard(
-                value: '${profile.eventsAttended}',
-                label: 'EVENTS ATTENDED',
-                valueColor: _headerGreen,
-              ),
-              const SizedBox(height: 16),
-              _ProfileMetricCard(
-                value: '${profile.requestsFulfilled}',
-                label: 'REQUESTS FULFILLED',
-                valueColor: _statBlue,
-              ),
-              if (widget.isAuthUserDoc &&
-                  !widget.actingAsOrganization &&
-                  (profile.accountType == UserAccountType.nonprofit ||
-                      profile.accountType == UserAccountType.business)) ...[
-                const SizedBox(height: 16),
-                _StaffEntryCard(
-                  onTap: () => context.push('/profile/staff'),
-                ),
-              ],
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Posts',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: _slateSubtitle,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              StreamBuilder<List<KindredPost>>(
-                stream: context.read<PostService>().postsByAuthorId(profile.uid),
-                builder: (context, snap) {
-                  if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
-                  }
-                  final posts = snap.data ?? [];
-                  if (posts.isEmpty) {
-                    return Text(
-                      'No posts yet.',
-                      style: theme.textTheme.bodyMedium?.copyWith(color: _slateSubtitle),
-                    );
-                  }
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < posts.length; i++)
-                        Padding(
-                          padding: EdgeInsets.only(bottom: i < posts.length - 1 ? 12 : 0),
-                          child: _ProfileAuthorPostCard(post: posts[i]),
+            ),
+          ),
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _ProfileIdentityPinnedDelegate(
+              backgroundColor: _pageBackground,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              showShadow: _identityHeaderStuck,
+              child: identityBlock,
+            ),
+          ),
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+          sliver: SliverToBoxAdapter(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (profile.bio != null && profile.bio!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 24),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Bio',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: _slateSubtitle,
+                            letterSpacing: 0.6,
+                          ),
                         ),
+                      ),
+                      const SizedBox(height: 10),
+                      SelectableText(
+                        profile.bio!.trim(),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          height: 1.5,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
                     ],
-                  );
-                },
-              ),
-              if (widget.fromProfileTab) ...[
-                const SizedBox(height: 24),
-                TextButton.icon(
-                  onPressed: () => _signOut(context),
-                  icon: Icon(Icons.logout, size: 20, color: _slateSubtitle),
-                  label: Text(
-                    'Log out',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: _slateSubtitle,
-                      fontWeight: FontWeight.w600,
+                    const SizedBox(height: 20),
+                    _buildPrimaryProfileActions(context, theme),
+                    const SizedBox(height: 12),
+                    if (!widget.isAuthUserDoc && !(widget.fromProfileTab && widget.actingAsOrganization))
+                      ProfileConnectionButton(
+                        otherUid: profile.uid,
+                        otherDisplayName: profile.publicDisplayLabel,
+                      ),
+                    const SizedBox(height: 28),
+                    _ConnectionsMetricCard(
+                      userId: profile.uid,
+                      tappable: widget.isAuthUserDoc && !widget.actingAsOrganization,
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    _ProfileMetricCard(
+                      value: '${profile.eventsAttended}',
+                      label: 'EVENTS ATTENDED',
+                      valueColor: _headerGreen,
+                    ),
+                    const SizedBox(height: 16),
+                    _ProfileMetricCard(
+                      value: '${profile.requestsFulfilled}',
+                      label: 'REQUESTS FULFILLED',
+                      valueColor: _statBlue,
+                    ),
+                    if (widget.isAuthUserDoc &&
+                        !widget.actingAsOrganization &&
+                        (profile.accountType == UserAccountType.nonprofit ||
+                            profile.accountType == UserAccountType.business)) ...[
+                      const SizedBox(height: 16),
+                      _StaffEntryCard(
+                        onTap: () => context.push('/profile/staff'),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Posts',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: _slateSubtitle,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    StreamBuilder<List<KindredPost>>(
+                      stream: context.read<PostService>().postsByAuthorId(profile.uid),
+                      builder: (context, snap) {
+                        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final posts = snap.data ?? [];
+                        if (posts.isEmpty) {
+                          return Text(
+                            'No posts yet.',
+                            style: theme.textTheme.bodyMedium?.copyWith(color: _slateSubtitle),
+                          );
+                        }
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < posts.length; i++)
+                              Padding(
+                                padding: EdgeInsets.only(bottom: i < posts.length - 1 ? 12 : 0),
+                                child: _ProfileAuthorPostCard(post: posts[i]),
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                    if (widget.fromProfileTab) ...[
+                      const SizedBox(height: 24),
+                      TextButton.icon(
+                        onPressed: () => _signOut(context),
+                        icon: Icon(Icons.logout, size: 20, color: _slateSubtitle),
+                        label: Text(
+                          'Log out',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: _slateSubtitle,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
-            ],
+              ),
+            ),
           ),
         ),
+      ],
       ),
     );
   }

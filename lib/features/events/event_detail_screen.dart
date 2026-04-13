@@ -11,6 +11,7 @@ import '../../core/services/event_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/event_formatting.dart';
 import '../../core/utils/link_utils.dart';
+import '../../widgets/close_to_shell.dart';
 import '../../widgets/message_poster_button.dart';
 import '../../widgets/post_author_row.dart';
 
@@ -27,6 +28,7 @@ class EventDetailScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: const [CloseToShellIconButton()],
         title: const Text('Event'),
       ),
       body: StreamBuilder(
@@ -167,8 +169,6 @@ class _EventBodyState extends State<_EventBody> {
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 14,
                         ),
-                    showVerifiedBadge: true,
-                    verifiedIconSize: 16,
                   ),
                 ),
                 const SizedBox(width: 10),

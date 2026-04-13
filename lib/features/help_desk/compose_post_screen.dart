@@ -22,6 +22,7 @@ import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/blob_from_object_url.dart';
 import '../../widgets/city_search_field.dart';
+import '../../widgets/close_to_shell.dart';
 
 class ComposePostScreen extends StatefulWidget {
   const ComposePostScreen({super.key, this.initialDeskKind, this.editingPostId});
@@ -326,9 +327,10 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit post' : 'New post'),
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: const [CloseToShellIconButton()],
       ),
       body: user == null
           ? const Center(child: Text('Sign in required'))

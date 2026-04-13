@@ -558,4 +558,24 @@ class UserProfileService {
       return snap.docs.map((d) => UserProfile.fromDoc(d.id, d.data())).toList();
     });
   }
+
+  /// Up to [limit] profiles from `users` (by document id), sorted by [UserProfile.publicDisplayLabel].
+  /// Intended for directory UIs; very large communities may need pagination or server search later.
+  Stream<List<UserProfile>> userDirectoryStream({int limit = 400}) {
+    if (_auth.currentUser == null) {
+      return const Stream.empty();
+    }
+    return _firestore
+        .collection('users')
+        .orderBy(FieldPath.documentId)
+        .limit(limit)
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs.map((d) => UserProfile.fromDoc(d.id, d.data())).toList();
+      list.sort(
+        (a, b) => a.publicDisplayLabel.toLowerCase().compareTo(b.publicDisplayLabel.toLowerCase()),
+      );
+      return list;
+    });
+  }
 }

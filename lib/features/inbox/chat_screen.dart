@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/view_as_controller.dart';
+import '../../widgets/close_to_shell.dart';
 import '../../core/models/chat_message.dart';
 import '../../core/models/direct_conversation.dart';
 import '../../core/services/messaging_service.dart';
@@ -149,6 +150,7 @@ class _ChatScreenState extends State<ChatScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: const [CloseToShellIconButton()],
         title: StreamBuilder<DirectConversation?>(
           stream: context.read<MessagingService>().conversationStream(widget.conversationId),
           builder: (context, snap) {

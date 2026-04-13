@@ -16,6 +16,7 @@ import 'app/kindred_router.dart';
 import 'app/view_as_controller.dart';
 import 'app/kindred_scaffold_messenger.dart';
 import 'core/config/app_config.dart';
+import 'core/kindred_google_fonts.dart';
 import 'core/config/kindred_firebase_storage.dart';
 import 'core/kindred_trace.dart';
 import 'core/services/connection_service.dart';
@@ -31,6 +32,7 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   kindredTrace('main', 'WidgetsFlutterBinding done');
+  await preloadKindredGoogleFonts();
   try {
     await dotenv.load(fileName: '.env', isOptional: true);
     kindredTrace('main', 'dotenv loaded');

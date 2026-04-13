@@ -6,14 +6,16 @@ import 'package:provider/provider.dart';
 
 import '../../core/models/connection_request.dart';
 import '../../core/models/user_connection.dart';
+import '../../core/models/user_profile.dart';
 import '../../core/services/connection_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../widgets/connection_approve_decline_row.dart';
+import '../../widgets/close_to_shell.dart';
 import '../../widgets/pending_connection_requests_badge.dart';
 
 const _requestsTabIndex = 1;
 
-/// Tabbed view of accepted connections and incoming requests.
+/// Tabbed view of connections, incoming requests, and neighbor search.
 class ConnectionsScreen extends StatefulWidget {
   const ConnectionsScreen({super.key});
 
@@ -27,7 +29,7 @@ class _ConnectionsScreenState extends State<ConnectionsScreen> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -46,6 +48,7 @@ class _ConnectionsScreenState extends State<ConnectionsScreen> with SingleTicker
     return Scaffold(
       appBar: AppBar(
         title: const Text('Connections'),
+        actions: const [CloseToShellIconButton()],
         bottom: TabBar(
           controller: _tabs,
           tabs: [
@@ -78,6 +81,7 @@ class _ConnectionsScreenState extends State<ConnectionsScreen> with SingleTicker
                 },
               ),
             ),
+            const Tab(text: 'Search'),
           ],
         ),
       ),
@@ -92,6 +96,7 @@ class _ConnectionsScreenState extends State<ConnectionsScreen> with SingleTicker
               }
             },
           ),
+          _NeighborSearchTab(onOpenProfile: (uid) => context.push('/u/$uid')),
         ],
       ),
     );
@@ -313,5 +318,134 @@ class _RequestsList extends StatelessWidget {
         );
       }
     }
+  }
+}
+
+class _NeighborSearchTab extends StatefulWidget {
+  const _NeighborSearchTab({required this.onOpenProfile});
+
+  final void Function(String uid) onOpenProfile;
+
+  @override
+  State<_NeighborSearchTab> createState() => _NeighborSearchTabState();
+}
+
+class _NeighborSearchTabState extends State<_NeighborSearchTab> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  static List<UserProfile> _applyFilter(List<UserProfile> all, String query, String? myUid) {
+    final withoutSelf = myUid == null ? all : all.where((p) => p.uid != myUid).toList();
+    final t = query.trim().toLowerCase();
+    if (t.isEmpty) return withoutSelf;
+    return withoutSelf.where((p) {
+      if (p.publicDisplayLabel.toLowerCase().contains(t)) return true;
+      final city = p.homeCityLabel?.trim().toLowerCase() ?? '';
+      if (city.contains(t)) return true;
+      final nb = p.neighborhoodLabel?.trim().toLowerCase() ?? '';
+      return nb.contains(t);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final me = FirebaseAuth.instance.currentUser?.uid;
+    final profileSvc = context.read<UserProfileService>();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: TextField(
+            controller: _search,
+            textInputAction: TextInputAction.search,
+            textCapitalization: TextCapitalization.words,
+            decoration: InputDecoration(
+              hintText: 'Search by name or place',
+              prefixIcon: const Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<List<UserProfile>>(
+            stream: profileSvc.userDirectoryStream(),
+            builder: (context, snap) {
+              if (snap.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      'Could not load members.\n${snap.error}',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+              if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final all = snap.data ?? [];
+              final filtered = _applyFilter(all, _search.text, me);
+              if (all.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No members to show yet.',
+                    style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                );
+              }
+              if (filtered.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No matches for “${_search.text.trim()}”.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.only(bottom: 16),
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: theme.dividerColor),
+                itemBuilder: (context, i) {
+                  final p = filtered[i];
+                  final name = p.publicDisplayLabel;
+                  final initial =
+                      name.trim().isEmpty ? '?' : name.trim().substring(0, 1).toUpperCase();
+                  final subtitle = p.homeCityLabel?.trim().isNotEmpty == true
+                      ? p.homeCityLabel!.trim()
+                      : (p.neighborhoodLabel?.trim().isNotEmpty == true
+                          ? p.neighborhoodLabel!.trim()
+                          : null);
+                  final photo = p.photoUrl?.trim();
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage:
+                          photo != null && photo.isNotEmpty ? NetworkImage(photo) : null,
+                      child: photo != null && photo.isNotEmpty ? null : Text(initial),
+                    ),
+                    title: Text(name),
+                    subtitle: subtitle != null ? Text(subtitle) : null,
+                    trailing: Icon(Icons.chevron_right, color: theme.colorScheme.onSurfaceVariant),
+                    onTap: () => widget.onOpenProfile(p.uid),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
   }
 }

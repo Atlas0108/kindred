@@ -20,6 +20,7 @@ import '../../core/services/location_search_service.dart';
 import '../../core/services/user_profile_service.dart';
 import '../../core/utils/blob_from_object_url.dart';
 import '../../widgets/city_search_field.dart';
+import '../../widgets/close_to_shell.dart';
 
 class CreateEventScreen extends StatefulWidget {
   const CreateEventScreen({super.key, this.editingEventId});
@@ -403,7 +404,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit event' : 'New event'),
-        leading: IconButton(icon: const Icon(Icons.close), onPressed: () => context.pop()),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
+        actions: const [CloseToShellIconButton()],
       ),
       body: _loadingEdit
           ? const Center(child: CircularProgressIndicator())

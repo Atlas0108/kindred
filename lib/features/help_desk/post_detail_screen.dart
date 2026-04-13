@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/models/post.dart';
 import '../../core/models/post_kind.dart';
 import '../../core/services/post_service.dart';
+import '../../widgets/close_to_shell.dart';
 import '../../widgets/message_poster_button.dart';
 import '../../widgets/post_author_row.dart';
 import '../../widgets/post_kind_icon_badge.dart';
@@ -28,6 +29,7 @@ class PostDetailScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
+        actions: const [CloseToShellIconButton()],
         title: const Text('Post'),
       ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -186,8 +188,6 @@ class _PostBodyState extends State<_PostBody> {
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 14,
                       ),
-                  showVerifiedBadge: true,
-                  verifiedIconSize: 16,
                 ),
               ),
               const SizedBox(width: 10),

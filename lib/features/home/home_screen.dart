@@ -157,6 +157,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                                 tabController: _tabController,
                                 browseLabel: browseLabel,
                                 onBrowseTap: profile == null ? null : () => _openFeedBrowseSheet(context, profile),
+                                innerBoxIsScrolled: innerBoxIsScrolled,
                               ),
                             ),
                           ),
@@ -473,6 +474,7 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.tabController,
     required this.browseLabel,
     required this.onBrowseTap,
+    required this.innerBoxIsScrolled,
   });
 
   final ColorScheme scheme;
@@ -480,6 +482,7 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
   final TabController tabController;
   final String browseLabel;
   final VoidCallback? onBrowseTap;
+  final bool innerBoxIsScrolled;
 
   static const double _locationRowHeight = 52;
   static const double _dividerHeight = 1;
@@ -510,57 +513,73 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     final theme = Theme.of(context);
-    return Material(
-      color: backgroundColor,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            height: _locationRowHeight,
-            child: InkWell(
-              onTap: onBrowseTap,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 8, 6),
-                child: Row(
-                  children: [
-                    Icon(Icons.place_outlined, size: 22, color: scheme.onSurface.withValues(alpha: 0.75)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          browseLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: _forest,
+    final showShadow = innerBoxIsScrolled || overlapsContent;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        boxShadow: showShadow
+            ? [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                  spreadRadius: 0,
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: _locationRowHeight,
+              child: InkWell(
+                onTap: onBrowseTap,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 8, 6),
+                  child: Row(
+                    children: [
+                      Icon(Icons.place_outlined, size: 22, color: scheme.onSurface.withValues(alpha: 0.75)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            browseLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: _forest,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    Icon(Icons.keyboard_arrow_down_rounded, color: scheme.onSurfaceVariant),
-                  ],
+                      Icon(Icons.keyboard_arrow_down_rounded, color: scheme.onSurfaceVariant),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Divider(height: 1, thickness: 1, color: scheme.outlineVariant.withValues(alpha: 0.45)),
-          SizedBox(height: _tabBarTopGap),
-          SizedBox(
-            height: _tabBarHeight,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: _HomeFeedFilterTabRow(
-                controller: tabController,
-                scheme: scheme,
-                palettes: _homeFeedFilterTabPalettes,
-                labels: _filterTabLabels,
+            Divider(height: 1, thickness: 1, color: scheme.outlineVariant.withValues(alpha: 0.45)),
+            SizedBox(height: _tabBarTopGap),
+            SizedBox(
+              height: _tabBarHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _HomeFeedFilterTabRow(
+                  controller: tabController,
+                  scheme: scheme,
+                  palettes: _homeFeedFilterTabPalettes,
+                  labels: _filterTabLabels,
+                ),
               ),
             ),
-          ),
-          SizedBox(height: _tabBarBottomGap),
-        ],
+            SizedBox(height: _tabBarBottomGap),
+          ],
+        ),
       ),
     );
   }
@@ -571,7 +590,8 @@ class _PinnedHomeFeedHeaderDelegate extends SliverPersistentHeaderDelegate {
         backgroundColor != oldDelegate.backgroundColor ||
         tabController != oldDelegate.tabController ||
         browseLabel != oldDelegate.browseLabel ||
-        onBrowseTap != oldDelegate.onBrowseTap;
+        onBrowseTap != oldDelegate.onBrowseTap ||
+        innerBoxIsScrolled != oldDelegate.innerBoxIsScrolled;
   }
 }
 
@@ -730,7 +750,6 @@ class _EventFeedCard extends StatelessWidget {
                   : 'Organizer',
               prefix: 'Led by ',
               enableProfileTap: false,
-              showVerifiedBadge: true,
             ),
           ],
         ),
@@ -837,7 +856,6 @@ class _EventFeedCard extends StatelessWidget {
               authorName: host,
               prefix: 'Led by ',
               enableProfileTap: false,
-              showVerifiedBadge: true,
             ),
           ],
         ),
@@ -1024,7 +1042,6 @@ class _PostFeedCard extends StatelessWidget {
               authorId: post.authorId,
               authorName: post.authorName,
               enableProfileTap: false,
-              showVerifiedBadge: true,
             ),
           ],
         ),
@@ -1131,7 +1148,6 @@ class _PostFeedCard extends StatelessWidget {
               authorId: post.authorId,
               authorName: post.authorName,
               enableProfileTap: false,
-              showVerifiedBadge: true,
             ),
           ],
         ),

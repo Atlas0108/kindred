@@ -6,9 +6,6 @@ import 'package:provider/provider.dart';
 import '../core/models/user_profile.dart';
 import '../core/services/user_profile_service.dart';
 
-/// Same blue as profile “Verified” (no text on cards).
-const kKindredVerifiedBadgeBlue = Color(0xFF2563EB);
-
 /// Avatar + author line; label uses live `users/{authorId}` display name when available
 /// ([authorName] is only a fallback). Tap opens [`/u/{authorId}`] except for the signed-in user.
 class PostAuthorTapRow extends StatelessWidget {
@@ -22,8 +19,6 @@ class PostAuthorTapRow extends StatelessWidget {
     this.iconColor,
     this.placeholderBackgroundColor,
     this.enableProfileTap = true,
-    this.showVerifiedBadge = false,
-    this.verifiedIconSize = 14,
   });
 
   final String authorId;
@@ -36,10 +31,6 @@ class PostAuthorTapRow extends StatelessWidget {
 
   /// When false, the row is display-only (e.g. post cards on the home feed).
   final bool enableProfileTap;
-
-  /// Compact [Icons.verified_rounded] after the name (feed post cards).
-  final bool showVerifiedBadge;
-  final double verifiedIconSize;
 
   static String _initials(String name) {
     final parts = name.trim().split(RegExp(r'\s+')).where((s) => s.isNotEmpty).toList();
@@ -179,18 +170,6 @@ class PostAuthorTapRow extends StatelessWidget {
                                   : null,
                             ),
                           ),
-                          if (showVerifiedBadge)
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.middle,
-                              child: Padding(
-                                padding: const EdgeInsets.only(left: 3),
-                                child: Icon(
-                                  Icons.verified_rounded,
-                                  size: verifiedIconSize,
-                                  color: kKindredVerifiedBadgeBlue,
-                                ),
-                              ),
-                            ),
                         ],
                       ),
                     ),

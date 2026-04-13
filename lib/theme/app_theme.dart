@@ -8,6 +8,7 @@ class AppTheme {
   /// Warm cream used for onboarding and auth screens.
   static const Color publicCommonsCream = Color(0xFFFDF9F3);
 
+  /// Playfair wordmark (sign-in, etc.) after [preloadKindredGoogleFonts].
   static TextStyle publicCommonsWordmark() {
     return GoogleFonts.playfairDisplay(
       fontSize: 34,

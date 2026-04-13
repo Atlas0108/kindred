@@ -118,8 +118,8 @@ Future<void> main() async {
   }
 }
 
-/// Shown immediately while [main] awaits Firebase, fonts, and env — avoids a blank
-/// frame (especially on mobile/desktop). Web also uses a matching `index.html` layer.
+/// Shown immediately while [main] awaits Firebase, fonts, and env — loader only.
+/// Web uses a matching spinner in `index.html` until `flutter-first-frame`.
 class KindredBootstrapSplash extends StatelessWidget {
   const KindredBootstrapSplash({super.key});
 
@@ -131,28 +131,13 @@ class KindredBootstrapSplash extends StatelessWidget {
       home: Scaffold(
         backgroundColor: AppTheme.publicCommonsCream,
         body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 3,
-                    color: AppTheme.publicCommonsForest,
-                    semanticsLabel: 'Loading',
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Public Commons',
-                  style: AppTheme.publicCommonsWordmark(),
-                  textAlign: TextAlign.center,
-                ),
-              ],
+          child: SizedBox(
+            width: 36,
+            height: 36,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: AppTheme.publicCommonsForest,
+              semanticsLabel: 'Loading',
             ),
           ),
         ),

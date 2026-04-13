@@ -18,7 +18,7 @@ class GeoSearchResult {
 class LocationSearchService {
   LocationSearchService._();
 
-  static const _userAgent = 'KindredApp/1.0 (local community app)';
+  static const _userAgent = 'PublicCommonsApp/1.0 (local community app)';
   static const _timeout = Duration(seconds: 10);
 
   static String _labelFromPhotonProps(Map<String, dynamic> props) {

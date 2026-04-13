@@ -208,7 +208,7 @@ class _DiditVerificationSheetState extends State<DiditVerificationSheet> {
                       ),
                     ),
                   Text(
-                    'Kindred profile id (use as vendor_data)',
+                    'Profile id (use as vendor_data)',
                     style: theme.textTheme.labelLarge,
                   ),
                   const SizedBox(height: 6),
@@ -299,7 +299,7 @@ class _DiditVerificationSheetState extends State<DiditVerificationSheet> {
               '// Unilink (workflow id in .env). vendorData must match POST /v3/session/ vendor_data:\n'
               'final result = await DiditSdk.startVerificationWithWorkflow(\n'
               '  workflowId,\n'
-              '  vendorData: kindredProfileUid, // route param or value from Developer details → Copy\n'
+              '  vendorData: profileUid, // route param or value from Developer details → Copy\n'
               ');',
               style: codeStyle,
             ),

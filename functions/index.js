@@ -9,6 +9,8 @@
  *   firebase functions:secrets:set SMTP_USER
  *   firebase functions:secrets:set SMTP_PASS
  * Optional params: MAIL_FROM, APP_PUBLIC_URL, SMTP_PORT (587), SMTP_SECURE (false)
+ *
+ * Callable sendPublicCommonsInvite: signed-in users send join invites by email (same SMTP).
  */
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
@@ -29,7 +31,7 @@ const smtpPort = defineString('SMTP_PORT', { default: '587' });
 const smtpSecure = defineString('SMTP_SECURE', { default: 'false' });
 const mailFrom = defineString('MAIL_FROM', { default: '' });
 const appPublicUrl = defineString('APP_PUBLIC_URL', {
-  default: 'https://gathr-5b405.web.app',
+  default: 'https://publiccommons.app',
 });
 
 /**
@@ -126,6 +128,123 @@ exports.createDiditSession = onCall(
   },
 );
 
+function buildSmtpTransporter() {
+  const port = Number.parseInt(smtpPort.value(), 10) || 587;
+  const secure = smtpSecure.value() === 'true';
+  return nodemailer.createTransport({
+    host: smtpHost.value(),
+    port,
+    secure,
+    auth: {
+      user: smtpUser.value(),
+      pass: smtpPass.value(),
+    },
+  });
+}
+
+/**
+ * @returns {string|null} From header, or null if SendGrid "apikey" user without MAIL_FROM.
+ */
+function resolveMailFromHeader() {
+  const smtpUserVal = smtpUser.value();
+  let from = mailFrom.value().trim();
+  if (!from) {
+    if (smtpUserVal.toLowerCase() === 'apikey') {
+      return null;
+    }
+    from = smtpUserVal;
+  }
+  return from;
+}
+
+/** Display name in recipients’ inboxes; address still comes from verified MAIL_FROM. */
+const outboundMailDisplayName = 'Public Commons App';
+
+
+function resolveBrandedMailFrom() {
+  const raw = resolveMailFromHeader();
+  if (!raw) return null;
+  const m = raw.match(/<([^>]+)>/);
+  const addr = (m ? m[1] : raw).trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) {
+    return raw;
+  }
+  return `${outboundMailDisplayName} <${addr}>`;
+}
+
+function isLikelyValidEmail(s) {
+  const t = String(s || '').trim();
+  if (t.length < 3 || t.length > 320) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t);
+}
+
+/**
+ * Signed-in user sends a join invite to an email address.
+ */
+exports.sendPublicCommonsInvite = onCall(
+  {
+    secrets: [smtpHost, smtpUser, smtpPass],
+    region: 'us-central1',
+    cors: true,
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Sign in required.');
+    }
+
+    const raw = request.data?.email;
+    if (typeof raw !== 'string' || !isLikelyValidEmail(raw)) {
+      throw new HttpsError('invalid-argument', 'Enter a valid email address.');
+    }
+    const to = raw.trim().toLowerCase();
+
+    const from = resolveBrandedMailFrom();
+    if (!from) {
+      throw new HttpsError(
+        'failed-precondition',
+        'Server email is not configured (set MAIL_FROM for your SMTP provider).',
+      );
+    }
+
+    const inviterUser = await admin.auth().getUser(request.auth.uid);
+    const inviterLabel =
+      (inviterUser.displayName && inviterUser.displayName.trim()) ||
+      inviterUser.email ||
+      'Someone';
+
+    const baseUrl = appPublicUrl.value().replace(/\/$/, '');
+    const joinUrl = `${baseUrl}/sign-in`;
+
+    const subject = "You're invited to Public Commons";
+    const text =
+      `${inviterLabel} invited you to join Public Commons — a local place for help, events, and neighbors.\n\n` +
+      `Create an account or sign in here:\n${joinUrl}\n`;
+    const html =
+      `<p><strong>${escapeHtml(inviterLabel)}</strong> invited you to join ` +
+      `<strong>Public Commons</strong> — a local place for help, events, and neighbors.</p>` +
+      `<p><a href="${escapeHtml(joinUrl)}">Join Public Commons</a></p>` +
+      `<p style="color:#666;font-size:14px;">If the link doesn’t work, copy and paste:<br/>${escapeHtml(
+        joinUrl,
+      )}</p>`;
+
+    const transporter = buildSmtpTransporter();
+    try {
+      await transporter.sendMail({
+        from,
+        to,
+        subject,
+        text,
+        html,
+      });
+    } catch (err) {
+      console.error('sendPublicCommonsInvite: SMTP failed', err?.message ?? err);
+      throw new HttpsError('unavailable', 'Could not send email right now. Try again later.');
+    }
+
+    return { ok: true };
+  },
+);
+
 const _maxPreviewLen = 600;
 
 /**
@@ -210,18 +329,14 @@ exports.notifyOnNewChatMessage = onDocumentCreated(
     const baseUrl = appPublicUrl.value().replace(/\/$/, '');
     const openUrl = `${baseUrl}/chat/${encodeURIComponent(conversationId)}`;
 
-    const smtpUserVal = smtpUser.value();
-    let from = mailFrom.value().trim();
+    const from = resolveBrandedMailFrom();
     if (!from) {
-      if (smtpUserVal.toLowerCase() === 'apikey') {
-        console.error(
-          'notifyOnNewChatMessage: MAIL_FROM must be set to a SendGrid-verified sender ' +
-            '(SMTP_USER is "apikey" — it cannot be used as the From address). ' +
-            'Use e.g. "Public Commons App <verified@yourdomain.com>".',
-        );
-        return;
-      }
-      from = smtpUserVal;
+      console.error(
+        'notifyOnNewChatMessage: MAIL_FROM must be set to a SendGrid-verified sender ' +
+        '(SMTP_USER is "apikey" — it cannot be used as the From address). ' +
+        'Use e.g. "Public Commons App <verified@yourdomain.com>".',
+      );
+      return;
     }
 
     const subject = `New message from ${senderName} — Public Commons App`;
@@ -235,17 +350,7 @@ exports.notifyOnNewChatMessage = onDocumentCreated(
       `${escapeHtml(preview).replace(/\n/g, '<br/>')}</blockquote>` +
       `<p><a href="${escapeHtml(openUrl)}">Open the conversation</a></p>`;
 
-    const port = Number.parseInt(smtpPort.value(), 10) || 587;
-    const secure = smtpSecure.value() === 'true';
-    const transporter = nodemailer.createTransport({
-      host: smtpHost.value(),
-      port,
-      secure,
-      auth: {
-        user: smtpUser.value(),
-        pass: smtpPass.value(),
-      },
-    });
+    const transporter = buildSmtpTransporter();
 
     try {
       console.info(

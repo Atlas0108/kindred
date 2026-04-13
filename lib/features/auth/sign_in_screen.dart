@@ -205,7 +205,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Kindred', style: theme.textTheme.headlineMedium),
+                    Text('Public Commons', style: theme.textTheme.headlineMedium),
                     const SizedBox(height: 8),
                     Text(
                       _register ? 'Create an account' : 'Sign in',

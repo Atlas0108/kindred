@@ -104,7 +104,7 @@ Future<void> main() async {
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
-                'Could not start Kindred.\n\n$e',
+                'Could not start Public Commons.\n\n$e',
                 textAlign: TextAlign.center,
               ),
             ),
@@ -122,7 +122,7 @@ class KindredApp extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isFirebaseConfigured) {
       return MaterialApp(
-        title: 'Kindred',
+        title: 'Public Commons',
         theme: AppTheme.light(),
         home: const SetupScreen(),
       );
@@ -197,7 +197,7 @@ class _KindredFirebaseShellState extends State<_KindredFirebaseShell> {
       ],
       child: _AuthProfileSync(
         child: MaterialApp.router(
-          title: 'Kindred',
+          title: 'Public Commons',
           theme: AppTheme.light(),
           scaffoldMessengerKey: kindredScaffoldMessengerKey,
           routerConfig: _router,

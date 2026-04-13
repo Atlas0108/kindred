@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 
-/// Debug trace for hangs. Filter browser / IDE console on `[Kindred]`.
+/// Debug trace for hangs. Filter browser / IDE console on `[Public Commons]`.
 ///
 /// Details are stringified so we never pass odd objects into [debugPrint] (and
 /// to reduce noise from tooling; heavy logging on Flutter web can still trigger
@@ -8,12 +8,12 @@ import 'package:flutter/foundation.dart' show debugPrint;
 void kindredTrace(String step, [Object? detail]) {
   final t = DateTime.now().toIso8601String();
   if (detail == null) {
-    debugPrint('[Kindred $t] $step');
+    debugPrint('[Public Commons $t] $step');
     return;
   }
   try {
-    debugPrint('[Kindred $t] $step | ${detail.toString()}');
+    debugPrint('[Public Commons $t] $step | ${detail.toString()}');
   } catch (_) {
-    debugPrint('[Kindred $t] $step | (detail omitted)');
+    debugPrint('[Public Commons $t] $step | (detail omitted)');
   }
 }

@@ -1,11 +1,11 @@
 {
-    "name": "Kindred",
-    "short_name": "Kindred",
+    "name": "Public Commons",
+    "short_name": "Public Commons",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "Kindred — local help, events, and discovery.",
+    "description": "Public Commons — local help, events, and discovery.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

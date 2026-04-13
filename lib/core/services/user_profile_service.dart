@@ -191,7 +191,7 @@ class UserProfileService {
   }
 
   /// Creates `users/{uid}` if it does not exist. Called after sign-in; errors are ignored.
-  /// Skips creation when the account has no email (Kindred treats email + display name as the minimum public identity).
+  /// Skips creation when the account has no email (email + display name are the minimum public identity).
   ///
   /// When [accountType] is non-null and the document already exists (e.g. another listener created it first),
   /// [accountType] is merged so registration can still record nonprofit/business after a race.

@@ -1,13 +1,13 @@
-// Kindred — Firebase Web config.
+// Public Commons — Firebase Web config.
 //
 // Google/Firebase **project IDs cannot be renamed**. This app still uses project `gathr-5b405`
-// until you create a new Firebase project (e.g. `kindred-xxxxx`) and run:
+// until you create a new Firebase project and run:
 // `flutterfire configure --project=<new-id> --platforms=web --overwrite-firebase-options`
 //
 // ## Browser `apiKey` (manual)
 // 1. [Google Cloud Console](https://console.cloud.google.com/) → select **gathr-5b405** (or your new project).
 // 2. **APIs & Services → Credentials → + CREATE CREDENTIALS → API key**.
-// 3. **Edit API key** → Name: e.g. `Kindred Firebase Web`.
+// 3. **Edit API key** → Name: e.g. `Public Commons Firebase Web`.
 // 4. **Application restrictions** → **HTTP referrers** → add `http://localhost:*/*` and `http://127.0.0.1:*/*` (and prod URLs later).
 // 5. **API restrictions** → for a prototype choose **Don’t restrict key**, *or* **Restrict** and enable at least:
 //    **Identity Toolkit API**, **Cloud Firestore API** (add others if the console suggests for Firebase).

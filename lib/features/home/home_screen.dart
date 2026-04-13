@@ -17,6 +17,7 @@ import '../../core/services/event_service.dart';
 import '../../core/services/post_service.dart';
 import '../../core/services/user_profile_service.dart';
 import 'feed_browse_location_sheet.dart';
+import 'public_commons_invite_sheet.dart';
 import '../../widgets/post_author_row.dart';
 import '../../widgets/post_kind_icon_badge.dart';
 import '../../widgets/post_save_button.dart';
@@ -140,6 +141,19 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     return NestedScrollView(
                       headerSliverBuilder: (BuildContext context, bool innerBoxIsScrolled) {
                         return [
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.only(right: 4, top: 4),
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: IconButton(
+                                  tooltip: 'Invite someone',
+                                  icon: const Icon(Icons.person_add_outlined),
+                                  onPressed: () => showPublicCommonsInviteSheet(context),
+                                ),
+                              ),
+                            ),
+                          ),
                           SliverToBoxAdapter(
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
@@ -616,7 +630,7 @@ class _KindredEventsHero extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Kindred', style: titleStyle),
+        Text('Public Commons', style: titleStyle),
         const SizedBox(height: 16),
         Text(
           'A platform designed to nourish the soul, tend to our communities, and strengthen our collective roots.',

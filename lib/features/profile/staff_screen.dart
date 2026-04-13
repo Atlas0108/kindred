@@ -48,7 +48,7 @@ class StaffScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
               Text(
-                'People you add can sign in with their own Kindred account and choose to view '
+                'People you add can sign in with their own Public Commons account and choose to view '
                 'and post as ${p.publicDisplayLabel} from the menu at the top of the app.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,

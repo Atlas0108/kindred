@@ -30,7 +30,7 @@ import '../../widgets/pending_connection_requests_badge.dart';
 import '../../widgets/post_kind_icon_badge.dart';
 import '../../widgets/view_as_identity_menu.dart';
 
-/// Matches the Kindred home cream canvas.
+/// Matches the home cream canvas.
 const _pageBackground = Color(0xFFF9F7F2);
 
 const _headerGreen = Color(0xFF2E7D5A);

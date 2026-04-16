@@ -46,6 +46,10 @@ Env:
 const DEMO_PASSWORD =
   process.env.DEMO_SEED_PASSWORD || 'KindredDemo2026!';
 
+// Default seed target after project migration. Still overridable via:
+// GOOGLE_CLOUD_PROJECT / GCLOUD_PROJECT / FIREBASE_PROJECT_ID
+process.env.FIREBASE_PROJECT_ID ??= 'public-commons';
+
 /** All seeded posts use this point (Portland, Oregon) so local feeds map to one metro. */
 const SEED_POST_LAT = 45.5152;
 const SEED_POST_LNG = -122.6784;

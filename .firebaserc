@@ -1,6 +1,7 @@
 {
   "projects": {
-    "default": "gathr-5b405",
-    "gathr": "gathr-5b405"
-  }
+    "default": "public-commons",
+    "public-commons": "public-commons"
+  },
+  "etags": {}
 }

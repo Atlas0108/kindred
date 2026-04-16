@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../core/kindred_trace.dart';
 import '../core/models/user_profile.dart';
 
 /// Drives [GoRouter] redirects from auth + `users/{uid}` so incomplete profiles go to setup.
@@ -36,7 +37,16 @@ class KindredProfileGateRefresh extends ChangeNotifier {
     }
     _setupComplete = null;
     notifyListeners();
-    _profileSub = _firestore.collection('users').doc(user.uid).snapshots().listen(_onProfileSnap);
+    _profileSub = _firestore.collection('users').doc(user.uid).snapshots().listen(
+      _onProfileSnap,
+      onError: (Object error, StackTrace stack) {
+        // Avoid a permanent /session-loading loop when Firestore listen fails
+        // (e.g. rules/config mismatch right after project migration).
+        kindredTrace('KindredProfileGateRefresh profile listen error', error);
+        _setupComplete = false;
+        notifyListeners();
+      },
+    );
   }
 
   void _onProfileSnap(DocumentSnapshot<Map<String, dynamic>> snap) {

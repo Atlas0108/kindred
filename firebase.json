@@ -39,15 +39,15 @@
   },
   "storage": {
     "rules": "storage.rules",
-    "bucket": "gathr-5b405.firebasestorage.app"
+    "bucket": "public-commons.firebasestorage.app"
   },
   "flutter": {
     "platforms": {
       "dart": {
         "lib/firebase_options.dart": {
-          "projectId": "gathr-5b405",
+          "projectId": "public-commons",
           "configurations": {
-            "web": "1:159475501188:web:d5df41d3a003acd79b5ad1"
+            "web": "1:473290632975:web:016cdaad0c6d09ad9e587a"
           }
         }
       }
